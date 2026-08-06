@@ -1,0 +1,27 @@
+# Environment
+.env
+
+# Dependencies
+/vendor/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & cache
+*.log
+/storage/logs/
+/tmp/
+phpunit.xml
+.phpunit.result.cache
+
+# Composer
+composer.phar
