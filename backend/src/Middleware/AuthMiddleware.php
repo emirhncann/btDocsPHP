@@ -46,6 +46,8 @@ final class AuthMiddleware implements MiddlewareInterface
             'username' => (string) $user['username'],
             'full_name' => (string) $user['full_name'],
             'role' => (string) $user['role'],
+            'default_firma_no' => UserRepository::nullableInt($user['default_firma_no'] ?? null),
+            'default_donem_no' => UserRepository::nullableInt($user['default_donem_no'] ?? null),
         ]);
 
         return $handler->handle($request);

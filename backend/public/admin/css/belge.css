@@ -1,0 +1,140 @@
+/* Auth’lu /belge sayfaları — print + dosya listesi */
+.belge-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  background: #111827;
+  color: #fff;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  z-index: 1050;
+}
+
+.print-footer {
+  display: none;
+}
+
+.belge-file-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.belge-file-card {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  background: var(--tblr-bg-surface, #fff);
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+  border-radius: 12px;
+  padding: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.belge-file-card:hover {
+  border-color: var(--btdocs-primary, #6b0a1c);
+  color: inherit;
+}
+
+.belge-file-card .thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3e8eb;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.belge-file-card .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.belge-file-card .fname {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.belge-file-card .sub {
+  margin-top: 0.2rem;
+  color: var(--tblr-secondary, #6b7280);
+  font-size: 0.85rem;
+}
+
+.belge-preview {
+  background: #fff;
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+  border-radius: 12px;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.belge-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.belge-preview-pdf {
+  padding: 0;
+  height: min(80vh, 900px);
+}
+
+.belge-preview-pdf iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 12px;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  .navbar,
+  .page-header,
+  .d-print-none,
+  .belge-toolbar,
+  aside {
+    display: none !important;
+  }
+
+  .page-wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .belge-preview,
+  .belge-preview-pdf {
+    border: 0;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    height: auto !important;
+  }
+
+  .belge-preview img {
+    width: 100%;
+  }
+
+  .belge-preview-pdf iframe {
+    height: 100vh;
+  }
+
+  .print-footer {
+    display: block !important;
+    text-align: center;
+    font-size: 11px;
+    color: #555;
+    margin-top: 12px;
+  }
+}

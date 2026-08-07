@@ -1,0 +1,220 @@
+/* BTDocs marka teması — Tabler 1.4 override */
+:root,
+[data-bs-theme="light"] {
+  --btdocs-brand: #54020b;
+  --btdocs-accent: #830b24;
+  --btdocs-primary: #6b0a1c;
+  --btdocs-primary-rgb: 107, 10, 28;
+
+  --tblr-primary: #6b0a1c;
+  --tblr-primary-rgb: 107, 10, 28;
+  --tblr-primary-fg: #ffffff;
+  --tblr-link-color: #6b0a1c;
+  --tblr-link-hover-color: #830b24;
+  --tblr-focus-ring-color: rgba(107, 10, 28, 0.25);
+  --tblr-border-radius: 0.75rem;
+  --tblr-border-radius-sm: 0.5rem;
+  --tblr-border-radius-lg: 1rem;
+  --tblr-border-radius-pill: 50rem;
+}
+
+[data-bs-theme="dark"] {
+  --tblr-primary: #830b24;
+  --tblr-primary-rgb: 131, 11, 36;
+  --tblr-primary-fg: #ffffff;
+  --tblr-link-color: #f3c5ce;
+  --tblr-link-hover-color: #ffffff;
+  --tblr-focus-ring-color: rgba(131, 11, 36, 0.45);
+}
+
+/* Primary buttons */
+.btn {
+  border-radius: 0.7rem;
+}
+
+.btn-primary {
+  --tblr-btn-bg: #6b0a1c;
+  --tblr-btn-border-color: #6b0a1c;
+  --tblr-btn-hover-bg: #830b24;
+  --tblr-btn-hover-border-color: #830b24;
+  --tblr-btn-active-bg: #54020b;
+  --tblr-btn-active-border-color: #54020b;
+  --tblr-btn-disabled-bg: #6b0a1c;
+  --tblr-btn-disabled-border-color: #6b0a1c;
+  background-color: #6b0a1c;
+  border-color: #6b0a1c;
+  color: #fff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-primary.active {
+  background-color: #830b24 !important;
+  border-color: #830b24 !important;
+  color: #fff !important;
+}
+
+.btn-outline-primary {
+  --tblr-btn-color: #6b0a1c;
+  --tblr-btn-border-color: #6b0a1c;
+  --tblr-btn-hover-bg: #6b0a1c;
+  --tblr-btn-hover-border-color: #6b0a1c;
+  --tblr-btn-hover-color: #fff;
+  --tblr-btn-active-bg: #54020b;
+  --tblr-btn-active-border-color: #54020b;
+  color: #6b0a1c;
+  border-color: #6b0a1c;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary.active,
+.btn-check:checked + .btn-outline-primary {
+  background-color: #6b0a1c !important;
+  border-color: #6b0a1c !important;
+  color: #fff !important;
+}
+
+.btn-group .btn-outline-primary.active {
+  background-color: #6b0a1c !important;
+  border-color: #6b0a1c !important;
+  color: #fff !important;
+}
+
+.bg-primary {
+  background-color: #6b0a1c !important;
+}
+
+.text-primary {
+  color: #6b0a1c !important;
+}
+
+.border-primary {
+  border-color: #6b0a1c !important;
+}
+
+.badge.bg-blue-lt,
+.badge.bg-azure-lt {
+  background: rgba(107, 10, 28, 0.12) !important;
+  color: #54020b !important;
+}
+
+/* Focus / form */
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: #830b24;
+  box-shadow: 0 0 0 0.25rem rgba(107, 10, 28, 0.2);
+}
+
+.form-check-input:checked {
+  background-color: #6b0a1c;
+  border-color: #6b0a1c;
+}
+
+a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link) {
+  color: #6b0a1c;
+}
+
+a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link):hover {
+  color: #830b24;
+}
+
+/* Login — açık zemin, tam wordmark */
+.login-brand-logo {
+  height: 72px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.login-page {
+  background:
+    radial-gradient(circle at top right, rgba(131, 11, 36, 0.14), transparent 42%),
+    radial-gradient(circle at bottom left, rgba(84, 2, 11, 0.1), transparent 40%),
+    var(--tblr-bg-surface-secondary, #f6f8fb);
+}
+
+/* Sidebar — Tabler class'ları; margin/overflow ile fixed layout'u bozma */
+.navbar-vertical {
+  background-color: #54020b;
+}
+
+.navbar-vertical .navbar-brand {
+  color: #fff;
+}
+
+.navbar-vertical .navbar-brand a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.navbar-vertical .navbar-brand-image {
+  height: 80px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  padding: 8px 14px;
+  background: #fff;
+  border-radius: 999px;
+  box-sizing: content-box;
+}
+
+.navbar-vertical .nav-link {
+  border-radius: 999px;
+  margin: 2px 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.navbar-vertical .nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.navbar-vertical .nav-link.active {
+  background-color: #830b24;
+  color: #fff;
+}
+
+.navbar-vertical .btn-outline-light {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.navbar-vertical .btn-outline-light:hover {
+  background: #830b24;
+  border-color: #830b24;
+  color: #fff;
+}
+
+/* Cards / surfaces */
+.card,
+.table-responsive,
+.modal-content {
+  border-radius: 0.9rem;
+}
+
+.doc-file-card.is-clickable:hover {
+  border-color: #830b24;
+}
+
+/* Dashboard stat rakamları */
+#stats-content .font-weight-medium {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #54020b;
+  line-height: 1.2;
+}
+
+.cari-suggestions .cari-suggestion-item:hover,
+.cari-suggestions .cari-suggestion-item:focus {
+  background: rgba(107, 10, 28, 0.08);
+}
+
+.dropzone.dragover {
+  border-color: #6b0a1c;
+  color: #6b0a1c;
+  background: rgba(107, 10, 28, 0.06);
+}

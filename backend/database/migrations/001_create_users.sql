@@ -10,7 +10,7 @@ BEGIN
         is_active BIT NOT NULL CONSTRAINT DF_Users_is_active DEFAULT (1),
         created_at DATETIME NOT NULL CONSTRAINT DF_Users_created_at DEFAULT (GETDATE()),
         CONSTRAINT UQ_Users_username UNIQUE (username),
-        CONSTRAINT CK_Users_role CHECK (role IN ('admin', 'saha', 'readonly'))
+        CONSTRAINT CK_Users_role CHECK (role IN ('admin', 'user', 'readonly'))
     );
 END
 GO

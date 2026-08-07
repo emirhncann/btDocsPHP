@@ -1,0 +1,204 @@
+/* btDocs Admin — Tabler üzerine hafif özelleştirmeler */
+.cari-typeahead {
+  position: relative;
+}
+
+.cari-suggestions {
+  position: absolute;
+  z-index: 1050;
+  left: 0;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  max-height: 280px;
+  overflow: auto;
+  display: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  background-color: #ffffff;
+  background-color: var(--tblr-bg-surface, #ffffff);
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+  border-radius: var(--tblr-border-radius, 4px);
+  box-shadow: 0 0.5rem 1.25rem rgba(24, 36, 51, 0.18);
+}
+
+.cari-suggestions.show {
+  display: block;
+}
+
+.cari-suggestions .cari-suggestion-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0.55rem 0.85rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.cari-suggestions .cari-suggestion-item:hover,
+.cari-suggestions .cari-suggestion-item:focus {
+  background: var(--tblr-bg-surface-secondary, #f1f5f9);
+  outline: none;
+}
+
+.cari-suggestions .cari-suggestion-empty {
+  padding: 0.65rem 0.85rem;
+}
+
+.selected-cari-card {
+  border-style: dashed;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: var(--tblr-bg-surface-secondary);
+}
+
+#admin-modal .modal-body {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+
+.doc-files {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.doc-file-card {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+  border-radius: var(--tblr-border-radius, 6px);
+  background: var(--tblr-bg-surface, #fff);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.doc-file-card.is-loading {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.doc-file-card .doc-file-delete {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.doc-file-card.is-clickable {
+  cursor: pointer;
+}
+
+.doc-file-card.is-clickable:hover {
+  background: var(--tblr-bg-surface-secondary, #f6f8fb);
+  border-color: var(--tblr-primary, #206bc4);
+}
+
+.doc-file-thumb {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--tblr-bg-surface-secondary, #f1f5f9);
+  color: var(--tblr-secondary, #667382);
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+}
+
+.doc-file-thumb > * {
+  grid-area: 1 / 1;
+}
+
+.doc-file-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.doc-file-thumb img[hidden] {
+  display: none !important;
+}
+
+.doc-file-thumb i {
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.doc-file-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.doc-file-meta .title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.doc-file-meta .file-name {
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-file-meta .sub {
+  color: var(--tblr-secondary, #667382);
+  font-size: 0.8rem;
+}
+
+.doc-files-empty {
+  padding: 0.85rem;
+  border: 1px dashed var(--tblr-border-color, #e6e7e9);
+  border-radius: var(--tblr-border-radius, 6px);
+  color: var(--tblr-secondary, #667382);
+  text-align: center;
+}
+
+.dropzone {
+  border: 2px dashed var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--tblr-secondary);
+  background: var(--tblr-bg-surface-secondary);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+
+.dropzone.dragover {
+  border-color: var(--tblr-primary);
+  color: var(--tblr-primary);
+}
+
+.upload-preview {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.upload-preview-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--tblr-border-color, #e6e7e9);
+  border-radius: var(--tblr-border-radius, 6px);
+  background: var(--tblr-bg-surface, #fff);
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}

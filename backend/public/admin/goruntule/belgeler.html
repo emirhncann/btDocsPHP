@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>btDocs — Belge Görüntüleme</title>
+  <base href="/admin/goruntule/" />
+  <link rel="icon" href="/assets/brand/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css" />
+  <link rel="stylesheet" href="/admin/css/brand.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/admin/css/admin.css" />
+</head>
+<body>
+  <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+    <div class="container-fluid">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Menüyü aç/kapat">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <h1 class="navbar-brand">
+        <a href="belgeler.html">
+          <img src="/assets/brand/btdocs.png" height="32" class="navbar-brand-image" alt="BTDocs" />
+        </a>
+      </h1>
+      <div class="collapse navbar-collapse" id="sidebar-menu">
+        <ul class="navbar-nav pt-lg-3">
+          <li class="nav-item" data-admin-only>
+            <a class="nav-link" href="/admin/users.html" data-nav="users">
+              <span class="nav-link-title">Kullanıcılar</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="belgeler.html" data-nav="documents">
+              <span class="nav-link-title">Belgeler</span>
+            </a>
+          </li>
+        </ul>
+        <div class="mt-auto p-3">
+          <button type="button" id="logout-btn" class="btn btn-outline-light w-100" data-action="logout">Çıkış Yap</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row align-items-center g-2">
+          <div class="col">
+            <div class="page-pretitle">Görüntüleme</div>
+            <h2 class="page-title">Belgeler</h2>
+          </div>
+          <div class="col-auto">
+            <div class="text-end">
+              <div class="fw-bold" id="topbar-user-name">—</div>
+              <div class="text-secondary small" id="topbar-user-role"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="container-xl">
+        <div class="text-secondary mb-3">Önce cariyi bulun, sonra belgelerini listeleyin.</div>
+
+        <div id="flash" class="alert d-none" role="alert"></div>
+
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-lg-6">
+                <label class="form-label" for="cari-search">Cari ara (ad, kod veya VKN)</label>
+                <div class="cari-typeahead">
+                  <input
+                    type="search"
+                    class="form-control"
+                    id="cari-search"
+                    placeholder="En az 2 karakter yazın…"
+                    autocomplete="off"
+                  />
+                  <div id="cari-suggestions" class="card shadow cari-suggestions" role="listbox"></div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="belge_tipi">Belge Tipi</label>
+                <select class="form-select" id="belge_tipi">
+                  <option value="tumu" selected>Tümü</option>
+                  <option value="siparis">siparis</option>
+                  <option value="irsaliye">irsaliye</option>
+                  <option value="fatura">fatura</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="belge_no">Belge No</label>
+                <input type="text" class="form-control" id="belge_no" placeholder="opsiyonel" />
+              </div>
+            </div>
+
+            <div id="selected-cari" class="selected-cari-card card mt-3 d-none">
+              <div class="card-body py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                  <div class="fw-bold" id="selected-cari-title">—</div>
+                  <div class="text-secondary small" id="selected-cari-meta"></div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-clear-cari">Temizle</button>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-1 align-items-end">
+              <div class="col-12">
+                <label class="form-label d-block">Hızlı tarih</label>
+                <div class="btn-group" role="group" aria-label="Hızlı tarih seçimi">
+                  <button type="button" class="btn btn-outline-primary" data-date-quick="today">Bugün</button>
+                  <button type="button" class="btn btn-outline-primary" data-date-quick="yesterday">Dün</button>
+                  <button type="button" class="btn btn-outline-primary" data-date-quick="ytd">Yılbaşından İtibaren</button>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="tarih_baslangic">Tarih başlangıç</label>
+                <input type="date" class="form-control" id="tarih_baslangic" />
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="tarih_bitis">Tarih bitiş</label>
+                <input type="date" class="form-control" id="tarih_bitis" />
+              </div>
+              <div class="col-md-3 d-flex align-items-end">
+                <button type="button" class="btn btn-primary w-100" id="search-btn" disabled>Belgeleri Ara</button>
+              </div>
+            </div>
+
+            <details id="advanced-filters" class="mt-3">
+              <summary class="fw-semibold">
+                Gizli filtreler
+                <span id="firma-donem-hint" class="text-secondary fw-normal ms-1"></span>
+              </summary>
+              <div class="row g-3 mt-1">
+                <div class="col-md-3">
+                  <label class="form-label" for="firma_no">Firma No</label>
+                  <input type="number" class="form-control" id="firma_no" min="1" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label" for="donem_no">Dönem No</label>
+                  <input type="number" class="form-control" id="donem_no" min="1" />
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table table-hover">
+              <thead>
+                <tr>
+                  <th>Belge No</th>
+                  <th>Tip</th>
+                  <th>Cari</th>
+                  <th>Tarih</th>
+                  <th>Tutar</th>
+                </tr>
+              </thead>
+              <tbody id="results-tbody">
+                <tr><td colspan="5" class="text-secondary">Önce bir cari seçin, sonra arayın.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
+  <script src="/admin/js/config.js"></script>
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/utils.js"></script>
+  <script src="/admin/js/modal.js"></script>
+  <script src="/admin/js/layout.js"></script>
+  <script src="/admin/js/documents.js"></script>
+</body>
+</html>

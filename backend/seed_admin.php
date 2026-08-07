@@ -27,7 +27,7 @@ if ($username === '' || $password === '') {
     exit(1);
 }
 
-$allowedRoles = ['admin', 'saha', 'readonly'];
+$allowedRoles = ['admin', 'user', 'readonly'];
 if (!in_array($role, $allowedRoles, true)) {
     fwrite(STDERR, "Geçersiz role. İzin verilenler: " . implode(', ', $allowedRoles) . "\n");
     exit(1);

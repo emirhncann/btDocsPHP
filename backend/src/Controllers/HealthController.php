@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Services\AppDbConnection;
 use App\Services\LogoDbConnection;
+use App\Support\SafeError;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -30,14 +31,16 @@ final class HealthController
         try {
             $this->logoDb->ping();
         } catch (\Throwable $e) {
-            $payload['logo_db'] = $e->getMessage();
+            SafeError::log($e, 'health.logo_db');
+            $payload['logo_db'] = SafeError::isProduction() ? 'unavailable' : $e->getMessage();
             $hasError = true;
         }
 
         try {
             $this->appDb->ping();
         } catch (\Throwable $e) {
-            $payload['app_db'] = $e->getMessage();
+            SafeError::log($e, 'health.app_db');
+            $payload['app_db'] = SafeError::isProduction() ? 'unavailable' : $e->getMessage();
             $hasError = true;
         }
 

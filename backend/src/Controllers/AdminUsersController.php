@@ -56,6 +56,15 @@ final class AdminUsersController
         $fullName = trim((string) ($body['full_name'] ?? ''));
         $role = trim((string) ($body['role'] ?? ''));
 
+        $firmaParsed = $this->parseOptionalIntField($body['default_firma_no'] ?? null, 'default_firma_no');
+        if ($firmaParsed['error'] !== null) {
+            return JsonResponse::error($response, $firmaParsed['error'], 422);
+        }
+        $donemParsed = $this->parseOptionalIntField($body['default_donem_no'] ?? null, 'default_donem_no');
+        if ($donemParsed['error'] !== null) {
+            return JsonResponse::error($response, $donemParsed['error'], 422);
+        }
+
         $validationError = $this->validateCreate($username, $password, $fullName, $role);
         if ($validationError !== null) {
             return JsonResponse::error($response, $validationError, 422);
@@ -70,7 +79,14 @@ final class AdminUsersController
             return JsonResponse::error($response, 'Şifre hash işlemi başarısız', 500);
         }
 
-        $id = $this->users->create($username, $hash, $fullName, $role);
+        $id = $this->users->create(
+            $username,
+            $hash,
+            $fullName,
+            $role,
+            $firmaParsed['value'],
+            $donemParsed['value'],
+        );
         $created = $this->users->findPublicById($id);
 
         $this->auditLog->log(
@@ -114,15 +130,35 @@ final class AdminUsersController
             $isActive = UserRepository::isTruthy($existing['is_active'] ?? false);
         }
 
+        if (array_key_exists('default_firma_no', $body)) {
+            $firmaParsed = $this->parseOptionalIntField($body['default_firma_no'], 'default_firma_no');
+            if ($firmaParsed['error'] !== null) {
+                return JsonResponse::error($response, $firmaParsed['error'], 422);
+            }
+            $defaultFirmaNo = $firmaParsed['value'];
+        } else {
+            $defaultFirmaNo = UserRepository::nullableInt($existing['default_firma_no'] ?? null);
+        }
+
+        if (array_key_exists('default_donem_no', $body)) {
+            $donemParsed = $this->parseOptionalIntField($body['default_donem_no'], 'default_donem_no');
+            if ($donemParsed['error'] !== null) {
+                return JsonResponse::error($response, $donemParsed['error'], 422);
+            }
+            $defaultDonemNo = $donemParsed['value'];
+        } else {
+            $defaultDonemNo = UserRepository::nullableInt($existing['default_donem_no'] ?? null);
+        }
+
         if ($fullName === '') {
             return JsonResponse::error($response, 'full_name boş olamaz', 422);
         }
 
         if (!in_array($role, UserRepository::ALLOWED_ROLES, true)) {
-            return JsonResponse::error($response, 'role sadece admin, saha veya readonly olabilir', 422);
+            return JsonResponse::error($response, 'role sadece admin, user veya readonly olabilir', 422);
         }
 
-        $this->users->update($id, $fullName, $role, $isActive);
+        $this->users->update($id, $fullName, $role, $isActive, $defaultFirmaNo, $defaultDonemNo);
         $updated = $this->users->findPublicById($id);
 
         $this->auditLog->log(
@@ -147,8 +183,8 @@ final class AdminUsersController
         $body = (array) $request->getParsedBody();
         $newPassword = (string) ($body['new_password'] ?? '');
 
-        if (strlen($newPassword) < 6) {
-            return JsonResponse::error($response, 'new_password en az 6 karakter olmalı', 422);
+        if ($newPassword === '') {
+            return JsonResponse::error($response, 'new_password boş olamaz', 422);
         }
 
         $hash = password_hash($newPassword, PASSWORD_BCRYPT);
@@ -196,12 +232,12 @@ final class AdminUsersController
 
     private function validateCreate(string $username, string $password, string $fullName, string $role): ?string
     {
-        if ($username === '' || mb_strlen($username) < 3) {
-            return 'username en az 3 karakter olmalı';
+        if ($username === '') {
+            return 'username boş olamaz';
         }
 
-        if (strlen($password) < 6) {
-            return 'password en az 6 karakter olmalı';
+        if ($password === '') {
+            return 'password boş olamaz';
         }
 
         if ($fullName === '') {
@@ -209,7 +245,7 @@ final class AdminUsersController
         }
 
         if (!in_array($role, UserRepository::ALLOWED_ROLES, true)) {
-            return 'role sadece admin, saha veya readonly olabilir';
+            return 'role sadece admin, user veya readonly olabilir';
         }
 
         return null;
@@ -260,5 +296,40 @@ final class AdminUsersController
             '0', 'false', 'no', 'off' => false,
             default => null,
         };
+    }
+
+    /**
+     * @return array{value: ?int, error: ?string}
+     */
+    private function parseOptionalIntField(mixed $value, string $field): array
+    {
+        if ($value === null || $value === '') {
+            return ['value' => null, 'error' => null];
+        }
+
+        if (is_int($value)) {
+            return ['value' => $value > 0 ? $value : null, 'error' => $value < 0 ? "{$field} geçersiz" : null];
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return ['value' => null, 'error' => null];
+            }
+            if (!preg_match('/^\d+$/', $trimmed)) {
+                return ['value' => null, 'error' => "{$field} sayısal olmalı"];
+            }
+            $intVal = (int) $trimmed;
+
+            return ['value' => $intVal > 0 ? $intVal : null, 'error' => null];
+        }
+
+        if (is_float($value)) {
+            $intVal = (int) $value;
+
+            return ['value' => $intVal > 0 ? $intVal : null, 'error' => null];
+        }
+
+        return ['value' => null, 'error' => "{$field} geçersiz"];
     }
 }

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>btDocs Admin — Kullanıcılar</title>
+  <base href="/admin/" />
+  <link rel="icon" href="/assets/brand/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css" />
+  <link rel="stylesheet" href="/admin/css/brand.css" />
+  <link rel="stylesheet" href="/admin/css/admin.css" />
+</head>
+<body>
+  <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+    <div class="container-fluid">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Menüyü aç/kapat">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <h1 class="navbar-brand">
+        <a href="dashboard.html">
+          <img src="/assets/brand/btdocs.png" height="32" class="navbar-brand-image" alt="BTDocs" />
+        </a>
+      </h1>
+      <div class="collapse navbar-collapse" id="sidebar-menu">
+        <ul class="navbar-nav pt-lg-3">
+          <li class="nav-item">
+            <a class="nav-link" href="dashboard.html" data-nav="dashboard">
+              <span class="nav-link-title">Dashboard</span>
+            </a>
+          </li>
+          <li class="nav-item" data-admin-only>
+            <a class="nav-link" href="users.html" data-nav="users">
+              <span class="nav-link-title">Kullanıcılar</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="documents.html" data-nav="documents">
+              <span class="nav-link-title">Belgeler</span>
+            </a>
+          </li>
+          <li class="nav-item" data-admin-only>
+            <a class="nav-link" href="settings.html" data-nav="settings">
+              <span class="nav-link-title">Ayarlar</span>
+            </a>
+          </li>
+        </ul>
+        <div class="mt-auto p-3">
+          <button type="button" id="logout-btn" class="btn btn-outline-light w-100" data-action="logout">Çıkış Yap</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row align-items-center g-2">
+          <div class="col">
+            <div class="page-pretitle">Yönetim</div>
+            <h2 class="page-title">Kullanıcılar</h2>
+          </div>
+          <div class="col-auto ms-auto d-flex align-items-center gap-3">
+            <div class="text-end">
+              <div class="fw-bold" id="topbar-user-name">—</div>
+              <div class="text-secondary small" id="topbar-user-role"></div>
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-new-user">Yeni Kullanıcı</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="container-xl">
+        <div class="text-secondary mb-3">Admin API üzerinden kullanıcı CRUD</div>
+
+        <div id="flash" class="alert d-none" role="alert"></div>
+
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label">Rol filtresi</label>
+                <select class="form-select" id="filter-role">
+                  <option value="">Hepsi</option>
+                  <option value="admin">admin</option>
+                  <option value="user">Kullanıcı</option>
+                  <option value="readonly">readonly</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Durum</label>
+                <select class="form-select" id="filter-active">
+                  <option value="">Hepsi</option>
+                  <option value="1">Aktif</option>
+                  <option value="0">Pasif</option>
+                </select>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-secondary w-100" id="btn-refresh">Yenile</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>Kullanıcı adı</th>
+                  <th>Ad Soyad</th>
+                  <th>Rol</th>
+                  <th>Firma/Dönem</th>
+                  <th>Durum</th>
+                  <th class="w-1">Aksiyonlar</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody">
+                <tr><td colspan="6" class="text-secondary">Yükleniyor…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
+  <script src="/admin/js/config.js"></script>
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/modal.js"></script>
+  <script src="/admin/js/layout.js"></script>
+  <script src="/admin/js/users.js"></script>
+</body>
+</html>

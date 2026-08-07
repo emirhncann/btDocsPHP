@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>btDocs — Belge Görüntüleme Giriş</title>
+  <base href="/admin/goruntule/" />
+  <link rel="icon" href="/assets/brand/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css" />
+  <link rel="stylesheet" href="/admin/css/brand.css" />
+  <link rel="stylesheet" href="/admin/css/admin.css" />
+</head>
+<body class="d-flex flex-column login-page">
+  <div class="page page-center w-100">
+    <div class="container container-tight py-4">
+      <div class="text-center mb-4">
+        <a href="index.html" class="d-inline-block">
+          <img src="/assets/brand/btdocs.png" alt="BTDocs" class="login-brand-logo" />
+        </a>
+      </div>
+      <div class="card card-md">
+        <div class="card-body">
+          <h2 class="h2 text-center mb-1">Belge görüntüleme</h2>
+          <p class="text-secondary text-center mb-4">Hesabınızla giriş yapın</p>
+          <div id="flash" class="alert alert-danger d-none" role="alert"></div>
+          <form id="login-form" method="post" action="#" autocomplete="on">
+            <div class="mb-3">
+              <label class="form-label">Kullanıcı adı</label>
+              <input type="text" class="form-control" name="username" autocomplete="username" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Şifre</label>
+              <input type="password" class="form-control" name="password" autocomplete="current-password" required />
+            </div>
+            <div class="form-footer">
+              <button type="submit" class="btn btn-primary w-100" id="login-btn">Giriş yap</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
+  <script src="/admin/js/config.js"></script>
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/login-goruntule.js"></script>
+</body>
+</html>

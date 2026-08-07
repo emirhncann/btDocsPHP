@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Repositories\UserRepository;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -17,12 +18,11 @@ final class MeController
         $payload = [
             'id' => (int) ($user['id'] ?? $user['user_id'] ?? 0),
             'username' => (string) ($user['username'] ?? ''),
+            'full_name' => (string) ($user['full_name'] ?? ''),
             'role' => (string) ($user['role'] ?? ''),
+            'default_firma_no' => UserRepository::nullableInt($user['default_firma_no'] ?? null),
+            'default_donem_no' => UserRepository::nullableInt($user['default_donem_no'] ?? null),
         ];
-
-        if (isset($user['full_name'])) {
-            $payload['full_name'] = (string) $user['full_name'];
-        }
 
         $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE));
 

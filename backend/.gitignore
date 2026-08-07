@@ -25,3 +25,9 @@ phpunit.xml
 
 # Composer
 composer.phar
+
+# Belge depolama (yerel)
+/DocStorage/
+
+# Rate limit / runtime
+/storage/

@@ -3,18 +3,36 @@
 declare(strict_types=1);
 
 use App\Config\Settings;
+use App\Controllers\AdminStatsController;
 use App\Controllers\AdminUsersController;
+use App\Controllers\AuditLogController;
 use App\Controllers\AuthController;
+use App\Controllers\CariController;
+use App\Controllers\DocumentsController;
 use App\Controllers\HealthController;
 use App\Controllers\MeController;
+use App\Controllers\PublicBelgeController;
+use App\Controllers\SettingsController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CorsMiddleware;
+use App\Middleware\RateLimitMiddleware;
 use App\Middleware\RoleMiddleware;
+use App\Repositories\AccessTokenRepository;
+use App\Repositories\AppSettingsRepository;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\DocumentFileRepository;
+use App\Repositories\DocumentRepository;
+use App\Repositories\LogoDocumentRepository;
+use App\Repositories\StatsRepository;
 use App\Repositories\UserRepository;
 use App\Services\AppDbConnection;
+use App\Services\DocumentStorageService;
+use App\Services\FileMimeValidator;
 use App\Services\JwtService;
 use App\Services\LogoDbConnection;
+use App\Services\PublicAccessGuard;
+use App\Services\RateLimiter;
+use App\Support\SafeError;
 use DI\ContainerBuilder;
 use Slim\Factory\AppFactory;
 use Slim\Routing\RouteCollectorProxy;
@@ -29,12 +47,30 @@ $containerBuilder->addDefinitions([
     LogoDbConnection::class => \DI\autowire(),
     AppDbConnection::class => \DI\autowire(),
     JwtService::class => \DI\autowire(),
+    DocumentStorageService::class => \DI\autowire(),
+    FileMimeValidator::class => \DI\autowire(),
+    RateLimiter::class => static fn (): RateLimiter => new RateLimiter(
+        $basePath . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'ratelimit'
+    ),
     UserRepository::class => \DI\autowire(),
     AuditLogRepository::class => \DI\autowire(),
+    DocumentRepository::class => \DI\autowire(),
+    DocumentFileRepository::class => \DI\autowire(),
+    StatsRepository::class => \DI\autowire(),
+    AppSettingsRepository::class => \DI\autowire(),
+    LogoDocumentRepository::class => \DI\autowire(),
+    AccessTokenRepository::class => \DI\autowire(),
+    PublicAccessGuard::class => \DI\autowire(),
     HealthController::class => \DI\autowire(),
     AuthController::class => \DI\autowire(),
     MeController::class => \DI\autowire(),
+    AdminStatsController::class => \DI\autowire(),
     AdminUsersController::class => \DI\autowire(),
+    DocumentsController::class => \DI\autowire(),
+    SettingsController::class => \DI\autowire(),
+    CariController::class => \DI\autowire(),
+    PublicBelgeController::class => \DI\autowire(),
+    AuditLogController::class => \DI\autowire(),
     CorsMiddleware::class => \DI\autowire(),
     AuthMiddleware::class => \DI\autowire(),
 ]);
@@ -55,17 +91,68 @@ $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 $app->add(CorsMiddleware::class);
 
-$displayErrorDetails = Settings::get('APP_ENV', 'production') !== 'production';
-$app->addErrorMiddleware($displayErrorDetails, true, true);
+$displayErrorDetails = !SafeError::isProduction();
+$errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
+if (SafeError::isProduction()) {
+    $errorMiddleware->setDefaultErrorHandler(function (
+        $request,
+        \Throwable $exception,
+        bool $displayErrorDetails,
+        bool $logErrors,
+        bool $logErrorDetails
+    ) use ($app) {
+        SafeError::log($exception, 'unhandled');
+        $response = $app->getResponseFactory()->createResponse(500);
+        $response->getBody()->write((string) json_encode(
+            ['error' => 'Sunucu hatası'],
+            JSON_UNESCAPED_UNICODE
+        ));
+
+        return $response->withHeader('Content-Type', 'application/json');
+    });
+}
+
+/** @var RateLimiter $rateLimiter */
+$rateLimiter = $container->get(RateLimiter::class);
 
 $app->get('/api/health', HealthController::class);
 $app->post('/api/auth/login', [AuthController::class, 'login']);
 
+// Belge sayfaları — index/viewer shell JWT ile; /raw AccessTokens
+$app->group('/belge', function (RouteCollectorProxy $group) {
+    $group->get('/{uid}', [PublicBelgeController::class, 'page']);
+    $group->get('/{uid}/image', [PublicBelgeController::class, 'image']);
+    $group->get('/{uid}/dosya/{fileId:[0-9]+}/raw', [PublicBelgeController::class, 'fileRaw']);
+    $group->get('/{uid}/dosya/{fileId:[0-9]+}', [PublicBelgeController::class, 'file']);
+})->add(RateLimitMiddleware::allow($rateLimiter, 'belge', 30, 60));
+
 $app->group('/api', function (RouteCollectorProxy $group) {
     $group->get('/me', MeController::class);
+
+    $group->get('/cari/search', [CariController::class, 'search']);
+
+    $group->get('/documents/search', [DocumentsController::class, 'search']);
+    $group->get('/documents/lookup', [DocumentsController::class, 'lookup']);
+    $group->post('/documents/match', [DocumentsController::class, 'match'])
+        ->add(RoleMiddleware::allow('admin', 'user'));
+    $group->get('/documents/{uid}/detail', [DocumentsController::class, 'detail']);
+    $group->put('/documents/{uid}/notes', [DocumentsController::class, 'updateNotes'])
+        ->add(RoleMiddleware::allow('admin', 'user'));
+    $group->get('/documents/{uid}/files/{fileId:[0-9]+}', [DocumentsController::class, 'downloadFile']);
+    $group->delete('/documents/{uid}/files/{fileId:[0-9]+}', [DocumentsController::class, 'deleteFile'])
+        ->add(RoleMiddleware::allow('admin'));
+    $group->post('/documents/{uid}/files/{fileId:[0-9]+}/view-link', [DocumentsController::class, 'createViewLink']);
+    $group->get('/documents/{uid}', [DocumentsController::class, 'show']);
+    $group->post('/documents/{uid}/files', [DocumentsController::class, 'upload'])
+        ->add(RoleMiddleware::allow('admin', 'user'));
+
+    $group->get('/settings', [SettingsController::class, 'show']);
 })->add(AuthMiddleware::class);
 
-// Auth önce, Role sonra çalışır (Slim LIFO: son eklenen önce çalışır)
+// Stats: tüm roller (admin/user/readonly) — RoleMiddleware YOK
+$app->get('/api/admin/stats', [AdminStatsController::class, 'index'])
+    ->add(AuthMiddleware::class);
+
 $app->group('/api/admin', function (RouteCollectorProxy $group) {
     $group->get('/users', [AdminUsersController::class, 'index']);
     $group->get('/users/{id:[0-9]+}', [AdminUsersController::class, 'show']);
@@ -73,6 +160,8 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) {
     $group->put('/users/{id:[0-9]+}', [AdminUsersController::class, 'update']);
     $group->post('/users/{id:[0-9]+}/reset-password', [AdminUsersController::class, 'resetPassword']);
     $group->delete('/users/{id:[0-9]+}', [AdminUsersController::class, 'delete']);
+    $group->get('/audit-log', [AuditLogController::class, 'index']);
+    $group->put('/settings', [SettingsController::class, 'update']);
 })
     ->add(RoleMiddleware::allow('admin'))
     ->add(AuthMiddleware::class);

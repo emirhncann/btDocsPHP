@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>btDocs Admin — Ayarlar</title>
+  <base href="/admin/" />
+  <link rel="icon" href="/assets/brand/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css" />
+  <link rel="stylesheet" href="/admin/css/brand.css" />
+  <link rel="stylesheet" href="/admin/css/admin.css" />
+</head>
+<body>
+  <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+    <div class="container-fluid">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Menüyü aç/kapat">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <h1 class="navbar-brand">
+        <a href="dashboard.html">
+          <img src="/assets/brand/btdocs.png" height="32" class="navbar-brand-image" alt="BTDocs" />
+        </a>
+      </h1>
+      <div class="collapse navbar-collapse" id="sidebar-menu">
+        <ul class="navbar-nav pt-lg-3">
+          <li class="nav-item">
+            <a class="nav-link" href="dashboard.html" data-nav="dashboard">
+              <span class="nav-link-title">Dashboard</span>
+            </a>
+          </li>
+          <li class="nav-item" data-admin-only>
+            <a class="nav-link" href="users.html" data-nav="users">
+              <span class="nav-link-title">Kullanıcılar</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="documents.html" data-nav="documents">
+              <span class="nav-link-title">Belgeler</span>
+            </a>
+          </li>
+          <li class="nav-item" data-admin-only>
+            <a class="nav-link" href="settings.html" data-nav="settings">
+              <span class="nav-link-title">Ayarlar</span>
+            </a>
+          </li>
+        </ul>
+        <div class="mt-auto p-3">
+          <button type="button" id="logout-btn" class="btn btn-outline-light w-100" data-action="logout">Çıkış Yap</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row align-items-center g-2">
+          <div class="col">
+            <div class="page-pretitle">Yönetim</div>
+            <h2 class="page-title">Ayarlar</h2>
+          </div>
+          <div class="col-auto">
+            <div class="text-end">
+              <div class="fw-bold" id="topbar-user-name">—</div>
+              <div class="text-secondary small" id="topbar-user-role"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="container-xl">
+        <div class="text-secondary mb-3">Belge şablonunda kullanılacak firma bilgileri.</div>
+
+        <div id="flash" class="alert d-none" role="alert"></div>
+
+        <div class="card">
+          <div class="card-body">
+            <form id="settings-form">
+              <div class="mb-3">
+                <label class="form-label" for="firma_unvani">Firma Ünvanı</label>
+                <input type="text" class="form-control" id="firma_unvani" name="firma_unvani" maxlength="200" placeholder="Örn. Bolu Teknoloji A.Ş." />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="firma_adres">Adres</label>
+                <textarea class="form-control" id="firma_adres" name="firma_adres" rows="3" maxlength="500" placeholder="Firma adresi"></textarea>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="firma_telefon">Telefon</label>
+                <input type="text" class="form-control" id="firma_telefon" name="firma_telefon" maxlength="50" placeholder="0 374 606 06 65" />
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <button type="submit" class="btn btn-primary" id="btn-save-settings">Kaydet</button>
+                <span id="settings-saved" class="text-success small d-none">Ayarlar güncellendi</span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
+  <script src="/admin/js/config.js"></script>
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/layout.js"></script>
+  <script src="/admin/js/settings.js"></script>
+</body>
+</html>

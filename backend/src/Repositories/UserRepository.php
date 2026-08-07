@@ -9,7 +9,7 @@ use PDO;
 
 final class UserRepository
 {
-    public const ALLOWED_ROLES = ['admin', 'saha', 'readonly'];
+    public const ALLOWED_ROLES = ['admin', 'user', 'readonly'];
 
     public function __construct(
         private readonly AppDbConnection $db,
@@ -22,7 +22,8 @@ final class UserRepository
     public function findByUsername(string $username): ?array
     {
         $stmt = $this->db->getConnection()->prepare(
-            'SELECT id, username, password_hash, full_name, role, is_active, created_at
+            'SELECT id, username, password_hash, full_name, role, is_active,
+                    default_firma_no, default_donem_no, created_at
              FROM dbo.Users
              WHERE username = :username'
         );
@@ -38,7 +39,8 @@ final class UserRepository
     public function findById(int $id): ?array
     {
         $stmt = $this->db->getConnection()->prepare(
-            'SELECT id, username, password_hash, full_name, role, is_active, created_at
+            'SELECT id, username, password_hash, full_name, role, is_active,
+                    default_firma_no, default_donem_no, created_at
              FROM dbo.Users
              WHERE id = :id'
         );
@@ -53,7 +55,8 @@ final class UserRepository
      */
     public function list(?string $role = null, ?bool $isActive = null): array
     {
-        $sql = 'SELECT id, username, full_name, role, is_active, created_at
+        $sql = 'SELECT id, username, full_name, role, is_active,
+                       default_firma_no, default_donem_no, created_at
                 FROM dbo.Users
                 WHERE 1 = 1';
         $params = [];
@@ -87,30 +90,48 @@ final class UserRepository
         return $user === null ? null : $this->toPublic($user);
     }
 
-    public function create(string $username, string $passwordHash, string $fullName, string $role): int
-    {
+    public function create(
+        string $username,
+        string $passwordHash,
+        string $fullName,
+        string $role,
+        ?int $defaultFirmaNo = null,
+        ?int $defaultDonemNo = null,
+    ): int {
         $stmt = $this->db->getConnection()->prepare(
-            'INSERT INTO dbo.Users (username, password_hash, full_name, role, is_active)
+            'INSERT INTO dbo.Users
+                (username, password_hash, full_name, role, is_active, default_firma_no, default_donem_no)
              OUTPUT INSERTED.id
-             VALUES (:username, :password_hash, :full_name, :role, 1)'
+             VALUES
+                (:username, :password_hash, :full_name, :role, 1, :default_firma_no, :default_donem_no)'
         );
         $stmt->execute([
             'username' => $username,
             'password_hash' => $passwordHash,
             'full_name' => $fullName,
             'role' => $role,
+            'default_firma_no' => $defaultFirmaNo,
+            'default_donem_no' => $defaultDonemNo,
         ]);
 
         return (int) $stmt->fetchColumn();
     }
 
-    public function update(int $id, string $fullName, string $role, bool $isActive): bool
-    {
+    public function update(
+        int $id,
+        string $fullName,
+        string $role,
+        bool $isActive,
+        ?int $defaultFirmaNo,
+        ?int $defaultDonemNo,
+    ): bool {
         $stmt = $this->db->getConnection()->prepare(
             'UPDATE dbo.Users
              SET full_name = :full_name,
                  role = :role,
-                 is_active = :is_active
+                 is_active = :is_active,
+                 default_firma_no = :default_firma_no,
+                 default_donem_no = :default_donem_no
              WHERE id = :id'
         );
 
@@ -119,6 +140,8 @@ final class UserRepository
             'full_name' => $fullName,
             'role' => $role,
             'is_active' => $isActive ? 1 : 0,
+            'default_firma_no' => $defaultFirmaNo,
+            'default_donem_no' => $defaultDonemNo,
         ]);
 
         return $stmt->rowCount() > 0;
@@ -174,8 +197,19 @@ final class UserRepository
             'full_name' => (string) $row['full_name'],
             'role' => (string) $row['role'],
             'is_active' => self::isTruthy($row['is_active'] ?? false),
+            'default_firma_no' => self::nullableInt($row['default_firma_no'] ?? null),
+            'default_donem_no' => self::nullableInt($row['default_donem_no'] ?? null),
             'created_at' => $this->formatDateTime($row['created_at'] ?? null),
         ];
+    }
+
+    public static function nullableInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /**
