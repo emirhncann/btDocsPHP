@@ -116,6 +116,63 @@ final class DocumentRepository
         ]);
     }
 
+    public function deleteById(int $documentId): void
+    {
+        $stmt = $this->db->getConnection()->prepare(
+            'DELETE FROM dbo.Documents WHERE id = :id'
+        );
+        $stmt->execute(['id' => $documentId]);
+    }
+
+    /**
+     * Logo arama sonuçlarına App DB imza durumunu ekler.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    public function enrichSearchWithSignedFlag(
+        int $firmaNo,
+        int $donemNo,
+        array $rows,
+    ): array {
+        if ($rows === []) {
+            return $rows;
+        }
+
+        $stmt = $this->db->getConnection()->prepare(
+            "SELECT d.belge_tipi, d.logo_logicalref
+             FROM dbo.Documents d
+             INNER JOIN dbo.DocumentFiles df ON df.document_id = d.id
+             WHERE d.firma_no = :firma_no
+               AND d.donem_no = :donem_no
+               AND df.file_type = 'signed_document'
+               AND df.is_current = 1
+               AND df.is_deleted = 0"
+        );
+        $stmt->execute([
+            'firma_no' => $firmaNo,
+            'donem_no' => $donemNo,
+        ]);
+
+        $signed = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $tip = (string) ($row['belge_tipi'] ?? '');
+            $ref = (int) ($row['logo_logicalref'] ?? 0);
+            if ($tip !== '' && $ref > 0) {
+                $signed[$tip . ':' . $ref] = true;
+            }
+        }
+
+        foreach ($rows as &$row) {
+            $tip = (string) ($row['belge_tipi'] ?? '');
+            $ref = (int) ($row['logo_logicalref'] ?? 0);
+            $row['imzali'] = isset($signed[$tip . ':' . $ref]);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
     /**
      * @param array<string, mixed> $row
      * @return array<string, mixed>

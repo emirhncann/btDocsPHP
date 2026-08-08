@@ -82,5 +82,27 @@ DB veya yalnızca dosya yedeklenirse referans bütünlüğü bozulur. Geri yükl
 önce DB, sonra DocStorage'ı aynı kesit noktasından restore edin (veya tersi ama
 eş zamanlı snapshot tercih edilir).
 
+## Acil Durum: .env Geri Yükleme
+
+Eğer Sistem Ayarları ekranından yanlış bir veritabanı bilgisi kaydedilir
+ve panel erişilemez hale gelirse:
+
+1. Sunucuya doğrudan erişin (RDP/dosya paylaşımı)
+2. `config/backups/` klasörüne gidin
+3. En son tarihli `.env.backup-{timestamp}` dosyasını bulun (dosya adındaki
+   timestamp'e göre sıralayın; en yenisi, son değişiklikten hemen önceki
+   sağlıklı halinizdir)
+4. Bu dosyayı `config/.env` üzerine kopyalayın (üzerine yazın)
+5. Bir sonraki istekte sistem otomatik olarak eski, çalışan ayarları
+   kullanmaya başlar — IIS restart gerekmez
+
+Yedekler otomatik silinmez, zamanla birikir — periyodik olarak eski
+yedekleri (örn. 30 günden eski) elle temizleyebilirsiniz.
+
+Not: Sistem Ayarları kaydından önce APP_DB değişikliği için sunucu otomatik
+bağlantı + `Users` tablosu doğrulaması yapar; başarısızsa `.env` hiç
+değiştirilmez. Bu acil yol, çoğunlukla elle bozulmuş `.env` veya olağanüstü
+durumlar içindir.
+
 ## Logo şema
 Tablo adlandırma ve TRCODE ayarları için bkz. `database/LOGO_SCHEMA.md`.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Config\LogoSchema;
+use App\Config\Settings;
 use App\Http\JsonResponse;
 use App\Repositories\AccessTokenRepository;
 use App\Repositories\AuditLogRepository;
@@ -13,6 +14,7 @@ use App\Repositories\DocumentRepository;
 use App\Repositories\LogoDocumentRepository;
 use App\Services\DocumentStorageService;
 use App\Services\FileMimeValidator;
+use App\Services\LogoNoteService;
 use App\Support\ClientIp;
 use App\Support\SafeError;
 use Psr\Http\Message\ResponseInterface;
@@ -44,6 +46,7 @@ final class DocumentsController
         private readonly AuditLogRepository $auditLog,
         private readonly FileMimeValidator $mimeValidator,
         private readonly AccessTokenRepository $accessTokens,
+        private readonly LogoNoteService $logoNotes,
     ) {
     }
 
@@ -53,31 +56,51 @@ final class DocumentsController
 
         $firmaNo = (int) ($params['firma_no'] ?? 0);
         $donemNo = (int) ($params['donem_no'] ?? 0);
-        $belgeTipi = strtolower(trim((string) ($params['belge_tipi'] ?? '')));
+        $belgeTipi = isset($params['belge_tipi'])
+            ? strtolower(trim((string) $params['belge_tipi']))
+            : null;
+        if ($belgeTipi === '') {
+            $belgeTipi = null;
+        }
         $cariKod = isset($params['cari_kod']) ? trim((string) $params['cari_kod']) : null;
+        if ($cariKod === '') {
+            $cariKod = null;
+        }
         $belgeNo = isset($params['belge_no']) ? trim((string) $params['belge_no']) : null;
+        if ($belgeNo === '') {
+            $belgeNo = null;
+        }
         $tarihBaslangic = isset($params['tarih_baslangic']) ? trim((string) $params['tarih_baslangic']) : null;
+        if ($tarihBaslangic === '') {
+            $tarihBaslangic = null;
+        }
         $tarihBitis = isset($params['tarih_bitis']) ? trim((string) $params['tarih_bitis']) : null;
+        if ($tarihBitis === '') {
+            $tarihBitis = null;
+        }
 
         if ($firmaNo < 1 || $donemNo < 1) {
             return JsonResponse::error($response, 'firma_no ve donem_no zorunludur', 422);
         }
 
-        if (!in_array($belgeTipi, LogoSchema::BELGE_TIPLERI, true)) {
+        if (
+            $belgeTipi !== null
+            && !in_array($belgeTipi, LogoSchema::BELGE_TIPLERI, true)
+        ) {
             return JsonResponse::error($response, 'belge_tipi siparis, irsaliye veya fatura olmalı', 422);
         }
 
-        if ($tarihBaslangic !== null && $tarihBaslangic !== '' && !$this->isYmdDate($tarihBaslangic)) {
+        if ($tarihBaslangic !== null && !$this->isYmdDate($tarihBaslangic)) {
             return JsonResponse::error($response, 'tarih_baslangic YYYY-MM-DD formatında olmalı', 422);
         }
 
-        if ($tarihBitis !== null && $tarihBitis !== '' && !$this->isYmdDate($tarihBitis)) {
+        if ($tarihBitis !== null && !$this->isYmdDate($tarihBitis)) {
             return JsonResponse::error($response, 'tarih_bitis YYYY-MM-DD formatında olmalı', 422);
         }
 
         if (
-            $tarihBaslangic !== null && $tarihBaslangic !== ''
-            && $tarihBitis !== null && $tarihBitis !== ''
+            $tarihBaslangic !== null
+            && $tarihBitis !== null
             && $tarihBaslangic > $tarihBitis
         ) {
             return JsonResponse::error($response, 'tarih_baslangic tarih_bitis değerinden sonra olamaz', 422);
@@ -88,10 +111,15 @@ final class DocumentsController
                 $firmaNo,
                 $donemNo,
                 $belgeTipi,
-                $cariKod !== '' ? $cariKod : null,
-                $belgeNo !== '' ? $belgeNo : null,
-                $tarihBaslangic !== '' ? $tarihBaslangic : null,
-                $tarihBitis !== '' ? $tarihBitis : null,
+                $cariKod,
+                $belgeNo,
+                $tarihBaslangic,
+                $tarihBitis,
+            );
+            $results = $this->documents->enrichSearchWithSignedFlag(
+                $firmaNo,
+                $donemNo,
+                $results,
             );
         } catch (\InvalidArgumentException $e) {
             return JsonResponse::error($response, $e->getMessage(), 422);
@@ -225,6 +253,19 @@ final class DocumentsController
         }
 
         $belgeNo = (string) ($logoDetail['belge_no'] ?? '');
+        try {
+            $belgeNo = $this->logoNotes->resolveDocNr(
+                $belgeTipi,
+                $logoLogicalref,
+                $firmaNo,
+                $donemNo,
+            );
+        } catch (\Throwable) {
+            // resolve başarısızsa A3 logoDetail FICHENO / logicalref fallback
+            if ($belgeNo === '') {
+                $belgeNo = (string) $logoLogicalref;
+            }
+        }
         if ($belgeNo === '') {
             $belgeNo = (string) $logoLogicalref;
         }
@@ -237,6 +278,10 @@ final class DocumentsController
         }
 
         try {
+            /** @var array<string, mixed>|null $created */
+            $created = null;
+            $belgeUrl = '';
+
             $created = $this->documents->create(
                 $firmaNo,
                 $donemNo,
@@ -255,13 +300,46 @@ final class DocumentsController
                 $belgeNo,
             );
 
+            $publicBase = rtrim((string) (Settings::get('PUBLIC_BASE_URL', '') ?? ''), '/');
+            if ($publicBase === '') {
+                throw new \RuntimeException(
+                    'PUBLIC_BASE_URL ayarlı değil — Ayarlar > Sistem Ayarları içinden uygulama adresini girin'
+                );
+            }
+
+            $belgeUrl = $publicBase . '/belge/' . $created['uid'];
+            $noteResult = $this->logoNotes->appendBelgeUrl(
+                $firmaNo,
+                $donemNo,
+                $belgeTipi,
+                $logoLogicalref,
+                $belgeUrl,
+            );
+
             $this->auditLog->log(
                 'document_matched',
                 $createdBy,
                 (int) $created['id'],
                 $this->clientIp($request),
             );
+
+            if (!empty($noteResult['truncated'])) {
+                $this->auditLog->log(
+                    'belge notu 255 karakter sınırı nedeniyle kısaltıldı',
+                    $createdBy,
+                    (int) $created['id'],
+                    $this->clientIp($request),
+                );
+            }
         } catch (\Throwable $e) {
+            if (isset($created['id'])) {
+                try {
+                    $this->documents->deleteById((int) $created['id']);
+                } catch (\Throwable) {
+                    // cleanup best-effort
+                }
+            }
+
             return JsonResponse::error(
                 $response,
                 SafeError::message($e, 'Belge eşleştirme hatası'),
@@ -272,6 +350,7 @@ final class DocumentsController
         return JsonResponse::write($response, [
             'uid' => $created['uid'],
             'document_id' => $created['id'],
+            'belge_url' => $belgeUrl,
         ], 201);
     }
 

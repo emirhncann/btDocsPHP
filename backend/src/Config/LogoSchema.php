@@ -112,6 +112,54 @@ final class LogoSchema
         return $codes;
     }
 
+    /**
+     * Belge açıklama / not satırları: LG_{FIRMA}_{DONEM}_PERDOC
+     */
+    public function perdocTable(int $firmaNo, int $donemNo): string
+    {
+        return $this->resolve(
+            Settings::get('LOGO_TABLE_PERDOC', 'LG_{FIRMA}_{DONEM}_PERDOC'),
+            $firmaNo,
+            $donemNo
+        );
+    }
+
+    /**
+     * Fatura başlık (fiş no) kaynağı: LG_{FIRMA}_{DONEM}_INVOICE
+     */
+    public function invoiceTable(int $firmaNo, int $donemNo): string
+    {
+        return $this->resolve(
+            Settings::get('LOGO_TABLE_INVOICE', 'LG_{FIRMA}_{DONEM}_INVOICE'),
+            $firmaNo,
+            $donemNo
+        );
+    }
+
+    /**
+     * PERDOC.INFOTYP — siparis=5; fatura/irsaliye=7 (Logo fatura notu INFOTYP=7 + INVOICE INFOREF)
+     */
+    public function perdocInfoTyp(string $belgeTipi): int
+    {
+        return match ($belgeTipi) {
+            'siparis' => 5,
+            'fatura', 'irsaliye' => 7,
+            default => throw new \InvalidArgumentException('Geçersiz belge_tipi'),
+        };
+    }
+
+    /** Metin notu: canlı Logo UI'da DOCTYP=3 */
+    public function perdocDocTyp(): int
+    {
+        return 3;
+    }
+
+    /** Not sıra no: canlı Logo UI'da DOCNR=1 */
+    public function perdocDocNr(): int
+    {
+        return 1;
+    }
+
     public function quoteIdent(string $identifier): string
     {
         if (!preg_match('/^[A-Za-z0-9_]+$/', $identifier)) {

@@ -58,3 +58,44 @@ SELECT TRCODE, COUNT(*) FROM LG_001_01_STFICHE GROUP BY TRCODE ORDER BY TRCODE;
 ```
 
 Migration `006_add_belge_no_and_match_index.sql` çalıştırılmalıdır.
+
+## PERDOC — belge notu (`LG_{FIRMA}_{DONEM}_PERDOC`)
+
+Logo arayüzündeki belge açıklama/not alanı `LDATA` kolonunda tutulur.
+
+### LDATA formatı (Delphi ShortString, RTF değil)
+
+Örnek (LG_103_01_PERDOC):
+
+`0x19697273616C6979652064657461796CFD2061E7FD6B6C616D61`
+
+= `0x19` (25 = uzunluk) + `"irsaliye detaylı açıklama"` (Windows-1254; `0xFD`=`ı`, `0xE7`=`ç`)
+
+- 1 byte uzunluk öneki (max 255)
+- ardından Windows-1254 düz metin
+- null-terminator yok
+
+### Eşleştirme anahtarları (canlı Logo UI — GO3DEMO / firma 103)
+
+| Alan | Anlam | Değer |
+|------|--------|--------|
+| `INFOTYP` | Belge ailesi | sipariş=`5`; fatura/irsaliye=`7` (Logo fatura notu `7`) |
+| `INFOREF` | Belgenin kendi `LOGICALREF` | fatura→`INVOICE`, irsaliye→`STFICHE`, sipariş→`ORFICHE` |
+| `DOCTYP` | Not içeriği (metin) | `3` |
+| `DOCNR` | Not sıra no | `1` |
+| `LREF` | PERDOC PK | **IDENTITY** (INSERT’te verilmez) |
+
+Fatura: A3 match key `STFICHE.LOGICALREF` olsa bile PERDOC.INFOREF = `STFICHE.INVOICEREF` (= `INVOICE.LOGICALREF`).
+
+
+### FICHENO / uygulama `belge_no` kaynağı
+
+| Tip | Kaynak |
+|-----|--------|
+| fatura | `LG_{FIRMA}_{DONEM}_INVOICE.FICHENO` — önce `INVOICE.LOGICALREF = match key`, yoksa `STFICHE.INVOICEREF → INVOICE` |
+| irsaliye / sipariş | A3 ile aynı: header `FICHENO` (STFICHE / ORFICHE) |
+
+Uygulama DB (`Documents`): `belge_tipi` string + `logo_logicalref` + `belge_no` (yukarıdaki FICHENO).
+
+Match (yeni uid) sonrası `PUBLIC_BASE_URL/belge/{uid}` PERDOC notuna eklenir (idempotent).
+

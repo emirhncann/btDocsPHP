@@ -1,5 +1,8 @@
 # Environment
 .env
+.env.backup-*
+config/.env.backup-*
+config/backups/
 
 # Dependencies
 /vendor/

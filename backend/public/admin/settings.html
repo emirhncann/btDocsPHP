@@ -90,9 +90,145 @@
                 <label class="form-label" for="firma_telefon">Telefon</label>
                 <input type="text" class="form-control" id="firma_telefon" name="firma_telefon" maxlength="50" placeholder="0 374 606 06 65" />
               </div>
+              <div class="mb-3">
+                <label class="form-label" for="firma_vkn">Vergi Kimlik No</label>
+                <input type="text" class="form-control" id="firma_vkn" name="firma_vkn" maxlength="20" inputmode="numeric" placeholder="VKN / TCKN" autocomplete="off" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="firma_email">E-posta</label>
+                <input type="email" class="form-control" id="firma_email" name="firma_email" maxlength="200" placeholder="info@firma.com" autocomplete="off" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="firma_logo">Firma Logosu</label>
+                <div class="d-flex flex-wrap align-items-start gap-3">
+                  <div id="firma-logo-preview-wrap" class="d-none border rounded p-2 bg-light">
+                    <img id="firma-logo-preview" src="" alt="Firma logosu" style="max-height: 72px; max-width: 200px; object-fit: contain;" />
+                  </div>
+                  <div class="flex-fill" style="min-width: 220px;">
+                    <input type="file" class="form-control" id="firma_logo" name="firma_logo" accept="image/png,image/jpeg" />
+                    <div class="form-hint">PNG veya JPEG, en fazla 2MB. Belge şablonundaki firma bloğunda kullanılır.</div>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                      <button type="button" class="btn btn-outline-primary" id="btn-upload-logo">Yükle</button>
+                      <button type="button" class="btn btn-outline-danger d-none" id="btn-remove-logo">Logoyu Kaldır</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div class="d-flex align-items-center gap-2">
                 <button type="submit" class="btn btn-primary" id="btn-save-settings">Kaydet</button>
                 <span id="settings-saved" class="text-success small d-none">Ayarlar güncellendi</span>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card mt-4 border-danger" data-admin-only>
+          <div class="card-header">
+            <h3 class="card-title">Sistem Ayarları</h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-warning" role="alert">
+              <strong>Dikkat:</strong> Bu ayarlar sistemin çalışması için kritiktir.
+              Yanlış Logo DB bilgisi kaydederseniz belge arama çalışmayı durdurabilir.
+            </div>
+
+            <div id="infra-flash" class="alert d-none" role="alert"></div>
+
+            <form id="infra-form">
+              <h4 class="mb-3">Logo veritabanı</h4>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="logo_db_host">Logo DB Sunucu Adresi</label>
+                  <input type="text" class="form-control" id="logo_db_host" name="logo_db_host" autocomplete="off" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="logo_db_name">Veritabanı Adı</label>
+                  <input type="text" class="form-control" id="logo_db_name" name="logo_db_name" autocomplete="off" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="logo_db_user">Kullanıcı Adı</label>
+                  <input type="text" class="form-control" id="logo_db_user" name="logo_db_user" autocomplete="off" />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="logo_db_pass">Şifre</label>
+                  <input type="password" class="form-control" id="logo_db_pass" name="logo_db_pass" autocomplete="new-password" />
+                  <div class="form-hint">Değiştirmek istemiyorsanız alanı olduğu gibi bırakın (••••••••).</div>
+                </div>
+              </div>
+
+              <div id="infra-test-result" class="alert d-none mb-3" role="status"></div>
+              <div class="mb-4">
+                <button type="button" class="btn btn-outline-primary" id="btn-test-infra">Bağlantıyı Test Et (Logo DB)</button>
+              </div>
+
+              <hr class="my-4" />
+              <h4 class="mb-3">Döküman depolama</h4>
+              <div class="row mb-4">
+                <div class="col-12 mb-0">
+                  <label class="form-label" for="doc_storage_root">Döküman Depolama Klasörü</label>
+                  <input type="text" class="form-control" id="doc_storage_root" name="doc_storage_root" required />
+                  <div class="form-hint text-warning">
+                    Bu yolu değiştirmek, önceden yüklenmiş belgelerin dosyalarını TAŞIMAZ — eski belgeler yeni yolda bulunamayabilir. Yalnızca ilk kurulumda veya dosyaları elle taşıdıktan sonra değiştirin.
+                  </div>
+                </div>
+              </div>
+
+              <h4 class="mb-3">Uygulama erişim adresi</h4>
+              <div class="row mb-4">
+                <div class="col-12 mb-0">
+                  <label class="form-label" for="public_base_url">PUBLIC_BASE_URL</label>
+                  <input
+                    type="url"
+                    class="form-control"
+                    id="public_base_url"
+                    name="public_base_url"
+                    placeholder="http://192.168.1.10:8080"
+                    autocomplete="off"
+                  />
+                  <div class="form-hint">
+                    Diğer bilgisayarlardan erişilecek kök adres (IP + port). Logo belge notuna yazılan
+                    <code>/belge/{uid}</code> linkleri bu adrese göre üretilir. Sonunda <code>/</code> olmadan yazın.
+                  </div>
+                </div>
+              </div>
+
+              <div class="card border-danger mb-4">
+                <div class="card-header bg-danger-lt">
+                  <h4 class="card-title text-danger mb-0">Uygulama veritabanı (APP_DB)</h4>
+                </div>
+                <div class="card-body">
+                  <div class="alert alert-danger" role="alert">
+                    Bu ayarlar admin panelin kendi çalışması için kritiktir.
+                    Yanlış bilgi girilirse sistem kendini otomatik korur (kaydetmeden önce bağlantıyı doğrular)
+                    ama yine de dikkatli olun.
+                  </div>
+                  <div class="row">
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label" for="app_db_host">APP_DB Sunucu Adresi</label>
+                      <input type="text" class="form-control" id="app_db_host" name="app_db_host" autocomplete="off" required />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label" for="app_db_name">Veritabanı Adı</label>
+                      <input type="text" class="form-control" id="app_db_name" name="app_db_name" autocomplete="off" required />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label" for="app_db_user">Kullanıcı Adı</label>
+                      <input type="text" class="form-control" id="app_db_user" name="app_db_user" autocomplete="off" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label" for="app_db_pass">Şifre</label>
+                      <input type="password" class="form-control" id="app_db_pass" name="app_db_pass" autocomplete="new-password" />
+                      <div class="form-hint">Değiştirmek istemiyorsanız alanı olduğu gibi bırakın (••••••••).</div>
+                    </div>
+                  </div>
+                  <div id="infra-app-test-result" class="alert d-none mb-3" role="status"></div>
+                  <button type="button" class="btn btn-outline-danger" id="btn-test-app">Bağlantıyı Test Et (APP_DB)</button>
+                </div>
+              </div>
+
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-danger" id="btn-save-infra">Kaydet</button>
+                <span id="infra-saved" class="text-success small d-none"></span>
               </div>
             </form>
           </div>

@@ -15,14 +15,24 @@ final class AppSettingsRepository
     }
 
     /**
-     * @return array{firma_unvani:?string,firma_adres:?string,firma_telefon:?string,updated_at:?string,updated_by:?int}
+     * @return array{
+     *   firma_unvani:?string,
+     *   firma_adres:?string,
+     *   firma_telefon:?string,
+     *   firma_vkn:?string,
+     *   firma_email:?string,
+     *   firma_logo_path:?string,
+     *   updated_at:?string,
+     *   updated_by:?int
+     * }
      */
     public function get(): array
     {
         $this->ensureRow();
 
         $stmt = $this->db->getConnection()->query(
-            'SELECT TOP 1 firma_unvani, firma_adres, firma_telefon, updated_at, updated_by
+            'SELECT TOP 1 firma_unvani, firma_adres, firma_telefon, firma_vkn, firma_email,
+                    firma_logo_path, updated_at, updated_by
              FROM dbo.AppSettings
              WHERE id = 1'
         );
@@ -35,12 +45,23 @@ final class AppSettingsRepository
     }
 
     /**
-     * @return array{firma_unvani:?string,firma_adres:?string,firma_telefon:?string,updated_at:?string,updated_by:?int}
+     * @return array{
+     *   firma_unvani:?string,
+     *   firma_adres:?string,
+     *   firma_telefon:?string,
+     *   firma_vkn:?string,
+     *   firma_email:?string,
+     *   firma_logo_path:?string,
+     *   updated_at:?string,
+     *   updated_by:?int
+     * }
      */
     public function update(
         ?string $firmaUnvani,
         ?string $firmaAdres,
         ?string $firmaTelefon,
+        ?string $firmaVkn,
+        ?string $firmaEmail,
         int $updatedBy,
     ): array {
         $this->ensureRow();
@@ -50,6 +71,8 @@ final class AppSettingsRepository
              SET firma_unvani = :firma_unvani,
                  firma_adres = :firma_adres,
                  firma_telefon = :firma_telefon,
+                 firma_vkn = :firma_vkn,
+                 firma_email = :firma_email,
                  updated_at = GETDATE(),
                  updated_by = :updated_by
              WHERE id = 1'
@@ -58,6 +81,39 @@ final class AppSettingsRepository
             'firma_unvani' => $firmaUnvani,
             'firma_adres' => $firmaAdres,
             'firma_telefon' => $firmaTelefon,
+            'firma_vkn' => $firmaVkn,
+            'firma_email' => $firmaEmail,
+            'updated_by' => $updatedBy,
+        ]);
+
+        return $this->get();
+    }
+
+    /**
+     * @return array{
+     *   firma_unvani:?string,
+     *   firma_adres:?string,
+     *   firma_telefon:?string,
+     *   firma_vkn:?string,
+     *   firma_email:?string,
+     *   firma_logo_path:?string,
+     *   updated_at:?string,
+     *   updated_by:?int
+     * }
+     */
+    public function updateLogoPath(?string $relativePath, int $updatedBy): array
+    {
+        $this->ensureRow();
+
+        $stmt = $this->db->getConnection()->prepare(
+            'UPDATE dbo.AppSettings
+             SET firma_logo_path = :firma_logo_path,
+                 updated_at = GETDATE(),
+                 updated_by = :updated_by
+             WHERE id = 1'
+        );
+        $stmt->execute([
+            'firma_logo_path' => $relativePath,
             'updated_by' => $updatedBy,
         ]);
 
@@ -75,15 +131,25 @@ final class AppSettingsRepository
         }
 
         $stmt = $this->db->getConnection()->prepare(
-            'INSERT INTO dbo.AppSettings (id, firma_unvani, firma_adres, firma_telefon)
-             VALUES (1, NULL, NULL, NULL)'
+            'INSERT INTO dbo.AppSettings
+                (id, firma_unvani, firma_adres, firma_telefon, firma_vkn, firma_email, firma_logo_path)
+             VALUES (1, NULL, NULL, NULL, NULL, NULL, NULL)'
         );
         $stmt->execute();
     }
 
     /**
      * @param array<string, mixed> $row
-     * @return array{firma_unvani:?string,firma_adres:?string,firma_telefon:?string,updated_at:?string,updated_by:?int}
+     * @return array{
+     *   firma_unvani:?string,
+     *   firma_adres:?string,
+     *   firma_telefon:?string,
+     *   firma_vkn:?string,
+     *   firma_email:?string,
+     *   firma_logo_path:?string,
+     *   updated_at:?string,
+     *   updated_by:?int
+     * }
      */
     private function normalize(array $row): array
     {
@@ -93,6 +159,9 @@ final class AppSettingsRepository
             'firma_unvani' => $this->nullableString($row['firma_unvani'] ?? null),
             'firma_adres' => $this->nullableString($row['firma_adres'] ?? null),
             'firma_telefon' => $this->nullableString($row['firma_telefon'] ?? null),
+            'firma_vkn' => $this->nullableString($row['firma_vkn'] ?? null),
+            'firma_email' => $this->nullableString($row['firma_email'] ?? null),
+            'firma_logo_path' => $this->nullableString($row['firma_logo_path'] ?? null),
             'updated_at' => $updatedAt instanceof \DateTimeInterface
                 ? $updatedAt->format('Y-m-d H:i:s')
                 : ($updatedAt !== null ? (string) $updatedAt : null),
@@ -103,7 +172,16 @@ final class AppSettingsRepository
     }
 
     /**
-     * @return array{firma_unvani:?string,firma_adres:?string,firma_telefon:?string,updated_at:?string,updated_by:?int}
+     * @return array{
+     *   firma_unvani:?string,
+     *   firma_adres:?string,
+     *   firma_telefon:?string,
+     *   firma_vkn:?string,
+     *   firma_email:?string,
+     *   firma_logo_path:?string,
+     *   updated_at:?string,
+     *   updated_by:?int
+     * }
      */
     private function emptySettings(): array
     {
@@ -111,6 +189,9 @@ final class AppSettingsRepository
             'firma_unvani' => null,
             'firma_adres' => null,
             'firma_telefon' => null,
+            'firma_vkn' => null,
+            'firma_email' => null,
+            'firma_logo_path' => null,
             'updated_at' => null,
             'updated_by' => null,
         ];

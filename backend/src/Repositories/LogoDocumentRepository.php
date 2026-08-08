@@ -94,6 +94,53 @@ final class LogoDocumentRepository
     public function searchDocuments(
         int $firmaNo,
         int $donemNo,
+        ?string $belgeTipi = null,
+        ?string $cariKod = null,
+        ?string $belgeNo = null,
+        ?string $tarihBaslangic = null,
+        ?string $tarihBitis = null,
+    ): array {
+        $types = ($belgeTipi !== null && $belgeTipi !== '')
+            ? [$belgeTipi]
+            : LogoSchema::BELGE_TIPLERI;
+
+        $results = [];
+        foreach ($types as $tip) {
+            $results = array_merge(
+                $results,
+                $this->searchDocumentsByType(
+                    $firmaNo,
+                    $donemNo,
+                    $tip,
+                    $cariKod,
+                    $belgeNo,
+                    $tarihBaslangic,
+                    $tarihBitis,
+                )
+            );
+        }
+
+        if (count($types) > 1) {
+            usort($results, static function (array $a, array $b): int {
+                $da = (string) ($a['tarih'] ?? '');
+                $db = (string) ($b['tarih'] ?? '');
+                if ($da !== $db) {
+                    return $db <=> $da;
+                }
+
+                return strcmp((string) ($b['belge_no'] ?? ''), (string) ($a['belge_no'] ?? ''));
+            });
+        }
+
+        return $results;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function searchDocumentsByType(
+        int $firmaNo,
+        int $donemNo,
         string $belgeTipi,
         ?string $cariKod = null,
         ?string $belgeNo = null,
@@ -193,6 +240,7 @@ final class LogoDocumentRepository
                         h.LOGICALREF AS logo_logicalref,
                         h.FICHENO AS belge_no,
                         h.DATE_ AS tarih,
+                        h.CAPIBLOCK_CREADEDDATE AS logo_created_at,
                         COALESCE(h.TOTALVAT, 0) AS kdv_tutari,
                         COALESCE(h.NETTOTAL, h.GROSSTOTAL, 0) AS genel_toplam,
                         c.CODE AS cari_kod,
@@ -204,6 +252,28 @@ final class LogoDocumentRepository
                       LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
                       WHERE h.LOGICALREF = :logicalref
                         AND ISNULL(h.CANCELLED, 0) = 0";
+
+        // Fatura: CAPIBLOCK_CREADEDDATE INVOICE'dan (A3 key STFICHE; INVOICEREF ile bağlanır)
+        if ($belgeTipi === 'fatura') {
+            $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
+            $headerSql = "SELECT TOP 1
+                            h.LOGICALREF AS logo_logicalref,
+                            h.FICHENO AS belge_no,
+                            h.DATE_ AS tarih,
+                            COALESCE(inv.CAPIBLOCK_CREADEDDATE, h.CAPIBLOCK_CREADEDDATE) AS logo_created_at,
+                            COALESCE(h.TOTALVAT, 0) AS kdv_tutari,
+                            COALESCE(h.NETTOTAL, h.GROSSTOTAL, 0) AS genel_toplam,
+                            c.CODE AS cari_kod,
+                            c.DEFINITION_ AS cari_unvan,
+                            c.ADDR1 AS adres1,
+                            c.ADDR2 AS adres2,
+                            c.CITY AS sehir
+                          FROM {$header} h
+                          LEFT JOIN {$invoice} inv ON inv.LOGICALREF = h.INVOICEREF
+                          LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
+                          WHERE h.LOGICALREF = :logicalref
+                            AND ISNULL(h.CANCELLED, 0) = 0";
+        }
 
         $stmt = $this->logoDb->getConnection()->prepare($headerSql);
         $stmt->execute(['logicalref' => $logicalRef]);
@@ -250,7 +320,11 @@ final class LogoDocumentRepository
             'logo_logicalref' => (int) $head['logo_logicalref'],
             'belge_tipi' => $belgeTipi,
             'belge_no' => (string) ($head['belge_no'] ?? ''),
-            'tarih' => self::formatDate($head['tarih'] ?? null),
+            // DATE_ (iş tarihi) + CAPIBLOCK_CREADEDDATE saati — ayrı "saat" alanı yok
+            'tarih' => self::formatDateWithLogoCreatedTime(
+                $head['tarih'] ?? null,
+                $head['logo_created_at'] ?? null,
+            ),
             'cari' => [
                 'kod' => (string) ($head['cari_kod'] ?? ''),
                 'unvan' => (string) ($head['cari_unvan'] ?? ''),
@@ -359,5 +433,39 @@ final class LogoDocumentRepository
         $ts = strtotime((string) $value);
 
         return $ts === false ? (string) $value : date('Y-m-d', $ts);
+    }
+
+    /**
+     * İş tarihi (DATE_) + Logo oluşturma saati (CAPIBLOCK_CREADEDDATE).
+     * Ayrı "saat" alanı dönülmez; örnek: "2026-08-07 14:32"
+     */
+    private static function formatDateWithLogoCreatedTime(mixed $dateValue, mixed $createdAt): ?string
+    {
+        $datePart = self::formatDate($dateValue);
+        $timePart = self::formatTimeHm($createdAt);
+
+        if ($datePart === null) {
+            return $timePart;
+        }
+        if ($timePart === null) {
+            return $datePart;
+        }
+
+        return $datePart . ' ' . $timePart;
+    }
+
+    private static function formatTimeHm(mixed $value): ?string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('H:i');
+        }
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $ts = strtotime((string) $value);
+
+        return $ts === false ? null : date('H:i', $ts);
     }
 }

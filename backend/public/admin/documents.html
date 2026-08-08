@@ -72,7 +72,7 @@
 
     <div class="page-body">
       <div class="container-xl">
-        <div class="text-secondary mb-3">Önce cariyi bulun, sonra belgelerini listeleyin.</div>
+        <div class="text-secondary mb-3">Bugünün belgeleri otomatik listelenir; cari ve diğer filtreler isteğe bağlıdır.</div>
 
         <div id="flash" class="alert d-none" role="alert"></div>
 
@@ -135,7 +135,7 @@
                 <input type="date" class="form-control" id="tarih_bitis" />
               </div>
               <div class="col-md-3 d-flex align-items-end">
-                <button type="button" class="btn btn-primary w-100" id="search-btn" disabled>Belgeleri Ara</button>
+                <button type="button" class="btn btn-primary w-100" id="search-btn">Belgeleri Ara</button>
               </div>
             </div>
 
@@ -163,6 +163,7 @@
             <table class="table table-vcenter card-table table-hover">
               <thead>
                 <tr>
+                  <th style="width:2.5rem"></th>
                   <th>Belge No</th>
                   <th>Tip</th>
                   <th>Cari</th>
@@ -171,7 +172,7 @@
                 </tr>
               </thead>
               <tbody id="results-tbody">
-                <tr><td colspan="5" class="text-secondary">Önce bir cari seçin, sonra arayın.</td></tr>
+                <tr><td colspan="6" class="text-secondary">Belgeler yükleniyor…</td></tr>
               </tbody>
             </table>
           </div>

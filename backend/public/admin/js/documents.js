@@ -90,7 +90,7 @@
     tarihBitis.value = toYmd(end);
     setDateQuickActive(key);
 
-    if (autoSearch && selectedCari) {
+    if (autoSearch !== false && firmaInput.value && donemInput.value) {
       runDocumentSearch();
     }
   }
@@ -105,7 +105,7 @@
   }
 
   function updateSearchEnabled() {
-    searchBtn.disabled = !(selectedCari && firmaInput.value && donemInput.value);
+    searchBtn.disabled = !(firmaInput.value && donemInput.value);
   }
 
   async function applyUserDefaults() {
@@ -125,6 +125,12 @@
     } finally {
       updateFirmaDonemHint();
       updateSearchEnabled();
+      if (firmaInput.value && donemInput.value) {
+        runDocumentSearch();
+      } else {
+        resultsBody.innerHTML =
+          '<tr><td colspan="6" class="text-secondary">Firma/dönem tanımlayın (Gizli filtreler), sonra arayın.</td></tr>';
+      }
     }
   }
 
@@ -195,15 +201,22 @@
     cariSearch.value = cari.cari_kod + " — " + (cari.cari_unvan || "");
     hideSuggestions();
     updateSearchEnabled();
+    if (firmaInput.value && donemInput.value) {
+      runDocumentSearch();
+    }
   }
 
   function clearCari() {
     selectedCari = null;
     selectedCariBox.classList.add("d-none");
     cariSearch.value = "";
-    resultsBody.innerHTML =
-      '<tr><td colspan="5" class="text-secondary">Önce bir cari seçin, sonra arayın.</td></tr>';
     updateSearchEnabled();
+    if (firmaInput.value && donemInput.value) {
+      runDocumentSearch();
+    } else {
+      resultsBody.innerHTML =
+        '<tr><td colspan="6" class="text-secondary">Firma/dönem tanımlayın (Gizli filtreler), sonra arayın.</td></tr>';
+    }
   }
 
   cariSearch.addEventListener("input", function () {
@@ -259,10 +272,6 @@
 
   async function runDocumentSearch() {
     hideFlash();
-    if (!selectedCari) {
-      showFlash("Önce bir cari seçin", "error");
-      return;
-    }
     if (!firmaInput.value || !donemInput.value) {
       advancedFilters.open = true;
       showFlash("Firma No ve Dönem No gerekli (Gizli filtreler)", "error");
@@ -276,31 +285,18 @@
     var baseQuery = {
       firma_no: firmaInput.value,
       donem_no: donemInput.value,
-      cari_kod: selectedCari.cari_kod,
       belge_no: document.getElementById("belge_no").value.trim(),
       tarih_baslangic: tarihBaslangic.value,
       tarih_bitis: tarihBitis.value,
     };
+    if (selectedCari && selectedCari.cari_kod) {
+      baseQuery.cari_kod = selectedCari.cari_kod;
+    }
 
     try {
+      // "Tümü" → belge_tipi gönderme (backend tüm tipleri birleştirir)
       if (belgeTipi === "tumu" || belgeTipi === "") {
-        var types = ["siparis", "irsaliye", "fatura"];
-        var batches = await Promise.all(
-          types.map(function (tip) {
-            return Api.get("/api/documents/search", Object.assign({}, baseQuery, { belge_tipi: tip }));
-          })
-        );
-        resultsCache = batches.reduce(function (acc, rows) {
-          return acc.concat(rows || []);
-        }, []);
-        resultsCache.sort(function (a, b) {
-          var da = a.tarih || "";
-          var db = b.tarih || "";
-          if (da === db) {
-            return String(b.belge_no || "").localeCompare(String(a.belge_no || ""), "tr");
-          }
-          return db.localeCompare(da);
-        });
+        resultsCache = await Api.get("/api/documents/search", baseQuery);
       } else {
         resultsCache = await Api.get(
           "/api/documents/search",
@@ -309,7 +305,7 @@
       }
       renderResults(resultsCache || []);
     } catch (err) {
-      resultsBody.innerHTML = "<tr><td colspan='5'>Arama başarısız</td></tr>";
+      resultsBody.innerHTML = '<tr><td colspan="6">Arama başarısız</td></tr>';
       showFlash(err.message || "Arama başarısız", "error");
     } finally {
       searchBtn.removeAttribute("aria-busy");
@@ -319,10 +315,29 @@
 
   searchBtn.addEventListener("click", runDocumentSearch);
 
+  function signedIconHtml(imzali) {
+    if (imzali) {
+      return (
+        '<span class="text-success" title="İmzalı" aria-label="İmzalı">' +
+        '<i class="ti ti-circle-check" aria-hidden="true"></i>' +
+        "</span>"
+      );
+    }
+    return (
+      '<span class="text-danger" title="İmzasız" aria-label="İmzasız">' +
+      '<i class="ti ti-circle-x" aria-hidden="true"></i>' +
+      "</span>"
+    );
+  }
+
+  function isSignedFlag(value) {
+    return value === true || value === 1 || value === "1";
+  }
+
   function renderResults(rows) {
     if (!rows.length) {
       resultsBody.innerHTML =
-        '<tr><td colspan="5" class="text-secondary">Sonuç bulunamadı</td></tr>';
+        '<tr><td colspan="6" class="text-secondary">Sonuç bulunamadı</td></tr>';
       return;
     }
 
@@ -332,6 +347,9 @@
           "<tr class='clickable-row' data-idx='" +
           idx +
           "'>" +
+          "<td class='text-nowrap'>" +
+          signedIconHtml(isSignedFlag(r.imzali)) +
+          "</td>" +
           "<td>" +
           escapeHtml(r.belge_no) +
           "</td>" +
@@ -538,6 +556,11 @@
       bodyHtml: detailBodyHtml(item),
       footerHtml:
         '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>',
+      onHidden: function () {
+        if (firmaInput.value && donemInput.value) {
+          runDocumentSearch();
+        }
+      },
     });
 
     var filesList = handle.body.querySelector("#files-list");

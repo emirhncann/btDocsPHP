@@ -10,6 +10,7 @@ use App\Controllers\AuthController;
 use App\Controllers\CariController;
 use App\Controllers\DocumentsController;
 use App\Controllers\HealthController;
+use App\Controllers\InfraSettingsController;
 use App\Controllers\MeController;
 use App\Controllers\PublicBelgeController;
 use App\Controllers\SettingsController;
@@ -27,6 +28,7 @@ use App\Repositories\StatsRepository;
 use App\Repositories\UserRepository;
 use App\Services\AppDbConnection;
 use App\Services\DocumentStorageService;
+use App\Services\EnvFileService;
 use App\Services\FileMimeValidator;
 use App\Services\JwtService;
 use App\Services\LogoDbConnection;
@@ -48,6 +50,9 @@ $containerBuilder->addDefinitions([
     AppDbConnection::class => \DI\autowire(),
     JwtService::class => \DI\autowire(),
     DocumentStorageService::class => \DI\autowire(),
+    EnvFileService::class => static fn (): EnvFileService => new EnvFileService(
+        $basePath . DIRECTORY_SEPARATOR . 'config'
+    ),
     FileMimeValidator::class => \DI\autowire(),
     RateLimiter::class => static fn (): RateLimiter => new RateLimiter(
         $basePath . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'ratelimit'
@@ -59,6 +64,7 @@ $containerBuilder->addDefinitions([
     StatsRepository::class => \DI\autowire(),
     AppSettingsRepository::class => \DI\autowire(),
     LogoDocumentRepository::class => \DI\autowire(),
+    \App\Services\LogoNoteService::class => \DI\autowire(),
     AccessTokenRepository::class => \DI\autowire(),
     PublicAccessGuard::class => \DI\autowire(),
     HealthController::class => \DI\autowire(),
@@ -68,6 +74,7 @@ $containerBuilder->addDefinitions([
     AdminUsersController::class => \DI\autowire(),
     DocumentsController::class => \DI\autowire(),
     SettingsController::class => \DI\autowire(),
+    InfraSettingsController::class => \DI\autowire(),
     CariController::class => \DI\autowire(),
     PublicBelgeController::class => \DI\autowire(),
     AuditLogController::class => \DI\autowire(),
@@ -80,11 +87,15 @@ AppFactory::setContainer($container);
 
 $app = AppFactory::create();
 
-// IIS document root /backend ise SCRIPT_NAME /public/index.php olabilir.
-$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-$detectedBasePath = str_replace('\\', '/', dirname($scriptName));
-if ($detectedBasePath !== '/' && $detectedBasePath !== '\\' && $detectedBasePath !== '.') {
-    $app->setBasePath(rtrim($detectedBasePath, '/'));
+// IIS'te document root /backend ise SCRIPT_NAME genelde /public/index.php olur.
+// PHP built-in server + router'da SCRIPT_NAME bazen istek URI'si olur
+// (/assets/company-logo gibi) — bunu base path sanmak tüm rotayı bozar.
+$scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+if (str_ends_with($scriptName, '/index.php')) {
+    $detectedBasePath = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+    if ($detectedBasePath !== '' && $detectedBasePath !== '/' && $detectedBasePath !== '.') {
+        $app->setBasePath($detectedBasePath);
+    }
 }
 
 $app->addBodyParsingMiddleware();
@@ -117,6 +128,9 @@ $rateLimiter = $container->get(RateLimiter::class);
 
 $app->get('/api/health', HealthController::class);
 $app->post('/api/auth/login', [AuthController::class, 'login']);
+
+// Firma logosu — belgelerde görünür; auth gerekmez
+$app->get('/assets/company-logo', [SettingsController::class, 'serveLogo']);
 
 // Belge sayfaları — index/viewer shell JWT ile; /raw AccessTokens
 $app->group('/belge', function (RouteCollectorProxy $group) {
@@ -162,6 +176,12 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) {
     $group->delete('/users/{id:[0-9]+}', [AdminUsersController::class, 'delete']);
     $group->get('/audit-log', [AuditLogController::class, 'index']);
     $group->put('/settings', [SettingsController::class, 'update']);
+    $group->post('/settings/logo', [SettingsController::class, 'uploadLogo']);
+    $group->delete('/settings/logo', [SettingsController::class, 'deleteLogo']);
+    $group->get('/settings/infra', [InfraSettingsController::class, 'show']);
+    $group->post('/settings/infra/test-connection', [InfraSettingsController::class, 'testConnection']);
+    $group->post('/settings/infra/test-app-connection', [InfraSettingsController::class, 'testAppConnection']);
+    $group->put('/settings/infra', [InfraSettingsController::class, 'update']);
 })
     ->add(RoleMiddleware::allow('admin'))
     ->add(AuthMiddleware::class);

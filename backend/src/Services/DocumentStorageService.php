@@ -125,6 +125,80 @@ final class DocumentStorageService
         return $realFile;
     }
 
+    /**
+     * DOC_STORAGE_ROOT/_brand/company-logo.{png|jpg}
+     *
+     * @return array{absolute_path:string,relative_path:string,file_size:int}
+     */
+    public function storeCompanyLogo(UploadedFileInterface $uploadedFile, string $mime): array
+    {
+        $ext = match (strtolower($mime)) {
+            'image/png' => 'png',
+            'image/jpeg', 'image/jpg' => 'jpg',
+            default => throw new RuntimeException('Desteklenmeyen logo MIME'),
+        };
+
+        $folder = $this->ensureBrandFolder();
+        $this->deleteCompanyLogoFiles($folder);
+
+        $storedName = 'company-logo.' . $ext;
+        $absolutePath = $folder . DIRECTORY_SEPARATOR . $storedName;
+        $uploadedFile->moveTo($absolutePath);
+
+        $size = filesize($absolutePath);
+        if ($size === false) {
+            throw new RuntimeException('Logo boyutu okunamadı');
+        }
+
+        return [
+            'absolute_path' => $absolutePath,
+            'relative_path' => '_brand/' . $storedName,
+            'file_size' => (int) $size,
+        ];
+    }
+
+    public function deleteCompanyLogo(): void
+    {
+        $folder = $this->getRoot() . DIRECTORY_SEPARATOR . '_brand';
+        if (!is_dir($folder)) {
+            return;
+        }
+        $this->deleteCompanyLogoFiles($folder);
+    }
+
+    public function resolveCompanyLogoAbsolute(?string $relativePath): ?string
+    {
+        if ($relativePath === null || trim($relativePath) === '') {
+            return null;
+        }
+
+        try {
+            return $this->resolveAbsolutePath($relativePath);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function ensureBrandFolder(): string
+    {
+        $path = $this->getRoot() . DIRECTORY_SEPARATOR . '_brand';
+        if (!is_dir($path) && !mkdir($path, 0775, true) && !is_dir($path)) {
+            throw new RuntimeException('Logo klasörü oluşturulamadı: ' . $path);
+        }
+
+        return $path;
+    }
+
+    private function deleteCompanyLogoFiles(string $folder): void
+    {
+        foreach (['company-logo.png', 'company-logo.jpg', 'company-logo.jpeg'] as $name) {
+            $path = $folder . DIRECTORY_SEPARATOR . $name;
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+    }
+
     private function buildStoredName(string $fileType, string $originalName, ?int $signedVersion): string
     {
         if ($fileType === 'signed_document') {
