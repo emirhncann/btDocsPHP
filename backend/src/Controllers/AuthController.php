@@ -29,7 +29,12 @@ final class AuthController
         $ip = ClientIp::from($request);
         $limitKey = 'login_fail:' . $ip;
 
-        if ($this->rateLimiter->tooManyAttempts($limitKey, self::LOGIN_MAX_FAILURES, self::LOGIN_WINDOW_SECONDS)) {
+        // GEÇİCİ: login rate limit kapalı (yerel/debug). Production'da geri aç.
+        $loginRateLimitEnabled = false;
+        if (
+            $loginRateLimitEnabled
+            && $this->rateLimiter->tooManyAttempts($limitKey, self::LOGIN_MAX_FAILURES, self::LOGIN_WINDOW_SECONDS)
+        ) {
             $retry = $this->rateLimiter->availableIn($limitKey);
 
             return JsonResponse::write($response, [

@@ -74,21 +74,26 @@
   function applyDateQuick(key, autoSearch) {
     var today = new Date();
     today.setHours(0, 0, 0, 0);
-    var start = new Date(today);
-    var end = new Date(today);
 
-    if (key === "yesterday") {
-      start.setDate(start.getDate() - 1);
-      end.setDate(end.getDate() - 1);
-    } else if (key === "ytd") {
-      start = new Date(today.getFullYear(), 0, 1);
+    if (key === "all" || key === "tumu") {
+      tarihBaslangic.value = "";
+      tarihBitis.value = "";
+      setDateQuickActive("all");
     } else {
-      key = "today";
-    }
+      var start = new Date(today);
+      var end = new Date(today);
 
-    tarihBaslangic.value = toYmd(start);
-    tarihBitis.value = toYmd(end);
-    setDateQuickActive(key);
+      if (key === "yesterday") {
+        start.setDate(start.getDate() - 1);
+        end.setDate(end.getDate() - 1);
+      } else {
+        key = "today";
+      }
+
+      tarihBaslangic.value = toYmd(start);
+      tarihBitis.value = toYmd(end);
+      setDateQuickActive(key);
+    }
 
     if (autoSearch !== false && firmaInput.value && donemInput.value) {
       runDocumentSearch();
@@ -122,15 +127,26 @@
     } catch (err) {
       advancedFilters.open = true;
       showFlash((err && err.message) || "Kullanıcı varsayılanları alınamadı", "error");
-    } finally {
-      updateFirmaDonemHint();
-      updateSearchEnabled();
-      if (firmaInput.value && donemInput.value) {
-        runDocumentSearch();
-      } else {
-        resultsBody.innerHTML =
-          '<tr><td colspan="6" class="text-secondary">Firma/dönem tanımlayın (Gizli filtreler), sonra arayın.</td></tr>';
+    }
+
+    var belgeTipiSelect = document.getElementById("belge_tipi");
+    try {
+      var settings = await Api.get("/api/settings");
+      var defaultTip = String((settings && settings.default_belge_tipi) || "tumu");
+      if (belgeTipiSelect && ["tumu", "siparis", "irsaliye", "fatura"].indexOf(defaultTip) !== -1) {
+        belgeTipiSelect.value = defaultTip;
       }
+    } catch (_e) {
+      /* ayar okunamazsa HTML varsayılanı (Tümü) kalır */
+    }
+
+    updateFirmaDonemHint();
+    updateSearchEnabled();
+    if (firmaInput.value && donemInput.value) {
+      runDocumentSearch();
+    } else {
+      resultsBody.innerHTML =
+        '<tr><td colspan="6" class="text-secondary">Firma/dönem tanımlayın (Gizli filtreler), sonra arayın.</td></tr>';
     }
   }
 
@@ -315,6 +331,24 @@
 
   searchBtn.addEventListener("click", runDocumentSearch);
 
+  function belgeTipiLabel(tip) {
+    var t = String(tip || "").toLowerCase();
+    if (t === "fatura") return "Fatura";
+    if (t === "irsaliye") return "İrsaliye";
+    if (t === "siparis") return "Sipariş";
+    if (t === "tumu") return "Tümü";
+    return tip || "—";
+  }
+
+  function formatFisBelgeNo(row) {
+    var fis = String((row && (row.fis_no || row.belge_no)) || "").trim();
+    var doc = String((row && row.doc_no) || "").trim();
+    if (fis && doc && fis !== doc) {
+      return fis + " / " + doc;
+    }
+    return fis || doc || "—";
+  }
+
   function signedIconHtml(imzali) {
     if (imzali) {
       return (
@@ -351,10 +385,10 @@
           signedIconHtml(isSignedFlag(r.imzali)) +
           "</td>" +
           "<td>" +
-          escapeHtml(r.belge_no) +
+          escapeHtml(formatFisBelgeNo(r)) +
           "</td>" +
           "<td>" +
-          escapeHtml(r.belge_tipi) +
+          escapeHtml(belgeTipiLabel(r.belge_tipi)) +
           "</td>" +
           "<td>" +
           escapeHtml(r.cari_kod) +
@@ -389,11 +423,14 @@
       '<div class="mb-3">' +
       "<h4 class='mb-2'>Özet</h4>" +
       '<div class="datagrid">' +
+      '<div class="datagrid-item"><div class="datagrid-title">Fiş No</div><div class="datagrid-content">' +
+      escapeHtml(item.fis_no || item.belge_no || "—") +
+      "</div></div>" +
       '<div class="datagrid-item"><div class="datagrid-title">Belge No</div><div class="datagrid-content">' +
-      escapeHtml(item.belge_no || "—") +
+      escapeHtml(item.doc_no || "—") +
       "</div></div>" +
       '<div class="datagrid-item"><div class="datagrid-title">Tip</div><div class="datagrid-content">' +
-      escapeHtml(item.belge_tipi || "—") +
+      escapeHtml(belgeTipiLabel(item.belge_tipi)) +
       "</div></div>" +
       '<div class="datagrid-item"><div class="datagrid-title">Tarih</div><div class="datagrid-content">' +
       escapeHtml(item.tarih || "—") +
@@ -551,7 +588,7 @@
     };
 
     var handle = AdminModal.open({
-      title: "Belge " + (item.belge_no || ""),
+      title: "Belge " + formatFisBelgeNo(item),
       size: "lg",
       bodyHtml: detailBodyHtml(item),
       footerHtml:

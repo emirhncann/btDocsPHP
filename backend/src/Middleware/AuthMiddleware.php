@@ -6,6 +6,8 @@ namespace App\Middleware;
 
 use App\Repositories\UserRepository;
 use App\Services\JwtService;
+use App\Services\LicenseCheckService;
+use App\Support\SafeError;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -17,6 +19,7 @@ final class AuthMiddleware implements MiddlewareInterface
     public function __construct(
         private readonly JwtService $jwt,
         private readonly UserRepository $users,
+        private readonly LicenseCheckService $licenseCheck,
     ) {
     }
 
@@ -49,6 +52,13 @@ final class AuthMiddleware implements MiddlewareInterface
             'default_firma_no' => UserRepository::nullableInt($user['default_firma_no'] ?? null),
             'default_donem_no' => UserRepository::nullableInt($user['default_donem_no'] ?? null),
         ]);
+
+        // Authenticated her istek: 24 saatte bir Proje C lisans doğrulaması (çoğu istekte SELECT + return)
+        try {
+            $this->licenseCheck->ensureFreshCheck();
+        } catch (\Throwable $e) {
+            SafeError::log($e, 'auth.license.ensureFreshCheck');
+        }
 
         return $handler->handle($request);
     }

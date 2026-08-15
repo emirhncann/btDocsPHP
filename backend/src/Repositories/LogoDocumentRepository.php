@@ -120,17 +120,23 @@ final class LogoDocumentRepository
             );
         }
 
-        if (count($types) > 1) {
-            usort($results, static function (array $a, array $b): int {
-                $da = (string) ($a['tarih'] ?? '');
-                $db = (string) ($b['tarih'] ?? '');
-                if ($da !== $db) {
-                    return $db <=> $da;
-                }
+        usort($results, static function (array $a, array $b): int {
+            $da = (string) ($a['tarih'] ?? '');
+            $db = (string) ($b['tarih'] ?? '');
+            if ($da !== $db) {
+                return $db <=> $da;
+            }
 
-                return strcmp((string) ($b['belge_no'] ?? ''), (string) ($a['belge_no'] ?? ''));
-            });
+            $sa = (int) ($a['sort_ref'] ?? $a['logo_logicalref'] ?? 0);
+            $sb = (int) ($b['sort_ref'] ?? $b['logo_logicalref'] ?? 0);
+
+            return $sb <=> $sa;
+        });
+
+        foreach ($results as &$row) {
+            unset($row['sort_ref']);
         }
+        unset($row);
 
         return $results;
     }
@@ -149,22 +155,61 @@ final class LogoDocumentRepository
     ): array {
         $this->assertBelgeTipi($belgeTipi);
 
-        $header = $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, $belgeTipi));
         $clcard = $this->schema->quoteIdent($this->schema->clcardTable($firmaNo));
         $trCodes = $this->schema->trCodes($belgeTipi);
-
-        $sql = "SELECT TOP 100
-                    h.LOGICALREF AS logo_logicalref,
-                    h.FICHENO AS belge_no,
-                    h.DATE_ AS tarih,
-                    COALESCE(h.NETTOTAL, h.GROSSTOTAL, 0) AS tutar,
-                    c.CODE AS cari_kod,
-                    c.DEFINITION_ AS cari_unvan
-                FROM {$header} h
-                LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
-                WHERE ISNULL(h.CANCELLED, 0) = 0";
-
         $params = [];
+
+        if ($belgeTipi === 'fatura') {
+            // Fatura listesi INVOICE'dan: perakende (1), toptan (2), verilen hizmet (3).
+            // TOP yok — bugün/dün/tümü filtresindeki tüm kayıtlar gelir.
+            $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
+            $stfiche = $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, 'fatura'));
+            $sql = "SELECT
+                        COALESCE(st.LOGICALREF, inv.LOGICALREF) AS logo_logicalref,
+                        inv.LOGICALREF AS sort_ref,
+                        inv.FICHENO AS fis_no,
+                        inv.DOCODE AS doc_no,
+                        inv.FICHENO AS belge_no,
+                        inv.DATE_ AS tarih,
+                        COALESCE(inv.NETTOTAL, inv.GROSSTOTAL, 0) AS tutar,
+                        c.CODE AS cari_kod,
+                        c.DEFINITION_ AS cari_unvan
+                    FROM {$invoice} inv
+                    LEFT JOIN {$clcard} c ON c.LOGICALREF = inv.CLIENTREF
+                    OUTER APPLY (
+                        SELECT TOP 1 s.LOGICALREF
+                        FROM {$stfiche} s
+                        WHERE s.INVOICEREF = inv.LOGICALREF
+                          AND ISNULL(s.CANCELLED, 0) = 0
+                        ORDER BY s.LOGICALREF
+                    ) st
+                    WHERE ISNULL(inv.CANCELLED, 0) = 0";
+            $dateCol = 'inv.DATE_';
+            $ficheCol = 'inv.FICHENO';
+            $docCol = 'inv.DOCODE';
+            $trCol = 'inv.TRCODE';
+            $orderCol = 'inv.DATE_ DESC, inv.LOGICALREF DESC';
+        } else {
+            $header = $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, $belgeTipi));
+            $sql = "SELECT TOP 100
+                        h.LOGICALREF AS logo_logicalref,
+                        h.LOGICALREF AS sort_ref,
+                        h.FICHENO AS fis_no,
+                        h.DOCODE AS doc_no,
+                        h.FICHENO AS belge_no,
+                        h.DATE_ AS tarih,
+                        COALESCE(h.NETTOTAL, h.GROSSTOTAL, 0) AS tutar,
+                        c.CODE AS cari_kod,
+                        c.DEFINITION_ AS cari_unvan
+                    FROM {$header} h
+                    LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
+                    WHERE ISNULL(h.CANCELLED, 0) = 0";
+            $dateCol = 'h.DATE_';
+            $ficheCol = 'h.FICHENO';
+            $docCol = 'h.DOCODE';
+            $trCol = 'h.TRCODE';
+            $orderCol = 'h.DATE_ DESC, h.LOGICALREF DESC';
+        }
 
         if ($trCodes !== []) {
             $placeholders = [];
@@ -173,7 +218,7 @@ final class LogoDocumentRepository
                 $placeholders[] = ':' . $key;
                 $params[$key] = $code;
             }
-            $sql .= ' AND h.TRCODE IN (' . implode(', ', $placeholders) . ')';
+            $sql .= ' AND ' . $trCol . ' IN (' . implode(', ', $placeholders) . ')';
         }
 
         if ($cariKod !== null && $cariKod !== '') {
@@ -182,31 +227,39 @@ final class LogoDocumentRepository
         }
 
         if ($belgeNo !== null && $belgeNo !== '') {
-            $sql .= ' AND h.FICHENO LIKE :belge_no';
-            $params['belge_no'] = '%' . $this->escapeLike($belgeNo) . '%';
+            $sql .= ' AND (' . $ficheCol . ' LIKE :belge_no OR ' . $docCol . ' LIKE :belge_no_doc)';
+            $like = '%' . $this->escapeLike($belgeNo) . '%';
+            $params['belge_no'] = $like;
+            $params['belge_no_doc'] = $like;
         }
 
         if ($tarihBaslangic !== null && $tarihBaslangic !== '') {
-            $sql .= ' AND CONVERT(date, h.DATE_) >= :tarih_baslangic';
+            $sql .= ' AND CONVERT(date, ' . $dateCol . ') >= :tarih_baslangic';
             $params['tarih_baslangic'] = $tarihBaslangic;
         }
 
         if ($tarihBitis !== null && $tarihBitis !== '') {
-            $sql .= ' AND CONVERT(date, h.DATE_) <= :tarih_bitis';
+            $sql .= ' AND CONVERT(date, ' . $dateCol . ') <= :tarih_bitis';
             $params['tarih_bitis'] = $tarihBitis;
         }
 
-        $sql .= ' ORDER BY h.DATE_ DESC, h.FICHENO DESC';
+        $sql .= ' ORDER BY ' . $orderCol;
 
         $stmt = $this->logoDb->getConnection()->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         return array_map(static function (array $row) use ($belgeTipi): array {
+            $fisNo = self::trimNo($row['fis_no'] ?? $row['belge_no'] ?? '');
+            $docNo = self::trimNo($row['doc_no'] ?? '');
+
             return [
                 'logo_logicalref' => (int) $row['logo_logicalref'],
+                'sort_ref' => (int) ($row['sort_ref'] ?? $row['logo_logicalref'] ?? 0),
                 'belge_tipi' => $belgeTipi,
-                'belge_no' => (string) ($row['belge_no'] ?? ''),
+                'belge_no' => $fisNo,
+                'fis_no' => $fisNo,
+                'doc_no' => $docNo,
                 'cari_kod' => (string) ($row['cari_kod'] ?? ''),
                 'cari_unvan' => (string) ($row['cari_unvan'] ?? ''),
                 'tarih' => self::formatDate($row['tarih'] ?? null),
@@ -239,6 +292,8 @@ final class LogoDocumentRepository
         $headerSql = "SELECT TOP 1
                         h.LOGICALREF AS logo_logicalref,
                         h.FICHENO AS belge_no,
+                        h.FICHENO AS fis_no,
+                        h.DOCODE AS doc_no,
                         h.DATE_ AS tarih,
                         h.CAPIBLOCK_CREADEDDATE AS logo_created_at,
                         COALESCE(h.TOTALVAT, 0) AS kdv_tutari,
@@ -247,18 +302,22 @@ final class LogoDocumentRepository
                         c.DEFINITION_ AS cari_unvan,
                         c.ADDR1 AS adres1,
                         c.ADDR2 AS adres2,
-                        c.CITY AS sehir
+                        c.CITY AS sehir,
+                        h.LOGICALREF AS stfiche_ref,
+                        0 AS invoice_ref
                       FROM {$header} h
                       LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
                       WHERE h.LOGICALREF = :logicalref
                         AND ISNULL(h.CANCELLED, 0) = 0";
 
-        // Fatura: CAPIBLOCK_CREADEDDATE INVOICE'dan (A3 key STFICHE; INVOICEREF ile bağlanır)
+        // Fatura: önce STFICHE (A3 key), yoksa INVOICE LOGICALREF (hizmet faturası)
         if ($belgeTipi === 'fatura') {
             $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
             $headerSql = "SELECT TOP 1
                             h.LOGICALREF AS logo_logicalref,
-                            h.FICHENO AS belge_no,
+                            COALESCE(NULLIF(LTRIM(RTRIM(inv.FICHENO)), ''), h.FICHENO) AS belge_no,
+                            COALESCE(NULLIF(LTRIM(RTRIM(inv.FICHENO)), ''), h.FICHENO) AS fis_no,
+                            COALESCE(NULLIF(LTRIM(RTRIM(inv.DOCODE)), ''), h.DOCODE) AS doc_no,
                             h.DATE_ AS tarih,
                             COALESCE(inv.CAPIBLOCK_CREADEDDATE, h.CAPIBLOCK_CREADEDDATE) AS logo_created_at,
                             COALESCE(h.TOTALVAT, 0) AS kdv_tutari,
@@ -267,7 +326,9 @@ final class LogoDocumentRepository
                             c.DEFINITION_ AS cari_unvan,
                             c.ADDR1 AS adres1,
                             c.ADDR2 AS adres2,
-                            c.CITY AS sehir
+                            c.CITY AS sehir,
+                            h.LOGICALREF AS stfiche_ref,
+                            COALESCE(h.INVOICEREF, 0) AS invoice_ref
                           FROM {$header} h
                           LEFT JOIN {$invoice} inv ON inv.LOGICALREF = h.INVOICEREF
                           LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
@@ -279,28 +340,84 @@ final class LogoDocumentRepository
         $stmt->execute(['logicalref' => $logicalRef]);
         $head = $stmt->fetch(PDO::FETCH_ASSOC);
 
+        if ($head === false && $belgeTipi === 'fatura') {
+            $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
+            $invoiceSql = "SELECT TOP 1
+                            COALESCE(st.LOGICALREF, inv.LOGICALREF) AS logo_logicalref,
+                            inv.FICHENO AS belge_no,
+                            inv.FICHENO AS fis_no,
+                            inv.DOCODE AS doc_no,
+                            inv.DATE_ AS tarih,
+                            inv.CAPIBLOCK_CREADEDDATE AS logo_created_at,
+                            COALESCE(inv.TOTALVAT, 0) AS kdv_tutari,
+                            COALESCE(inv.NETTOTAL, inv.GROSSTOTAL, 0) AS genel_toplam,
+                            c.CODE AS cari_kod,
+                            c.DEFINITION_ AS cari_unvan,
+                            c.ADDR1 AS adres1,
+                            c.ADDR2 AS adres2,
+                            c.CITY AS sehir,
+                            COALESCE(st.LOGICALREF, 0) AS stfiche_ref,
+                            inv.LOGICALREF AS invoice_ref
+                          FROM {$invoice} inv
+                          LEFT JOIN {$clcard} c ON c.LOGICALREF = inv.CLIENTREF
+                          OUTER APPLY (
+                              SELECT TOP 1 s.LOGICALREF
+                              FROM {$header} s
+                              WHERE s.INVOICEREF = inv.LOGICALREF
+                                AND ISNULL(s.CANCELLED, 0) = 0
+                              ORDER BY s.LOGICALREF
+                          ) st
+                          WHERE inv.LOGICALREF = :logicalref
+                            AND ISNULL(inv.CANCELLED, 0) = 0";
+            $stmt = $this->logoDb->getConnection()->prepare($invoiceSql);
+            $stmt->execute(['logicalref' => $logicalRef]);
+            $head = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+
         if ($head === false) {
             return null;
         }
 
         // LINETYPE: 0 malzeme, 2 indirim, 4 hizmet, 6 set, 7 set detayı (bkz. LOGO_SCHEMA.md)
-        $lineSql = "SELECT
-                        l.LOGICALREF AS line_ref,
-                        COALESCE(l.LINETYPE, 0) AS linetype,
-                        COALESCE(l.PARENTLNREF, 0) AS parent_ln_ref,
-                        COALESCE(i.NAME, l.LINEEXP, '') AS urun_adi,
-                        COALESCE(l.AMOUNT, 0) AS miktar,
-                        COALESCE(l.PRICE, 0) AS birim_fiyat,
-                        COALESCE(l.TOTAL, 0) AS brut_tutar,
-                        COALESCE(l.LINENET, l.TOTAL, 0) AS linenet,
-                        COALESCE(l.DISTDISC, 0) AS dist_disc
-                    FROM {$line} l
-                    LEFT JOIN {$items} i ON i.LOGICALREF = l.STOCKREF
-                    WHERE l.[{$fkCol}] = :logicalref
-                    ORDER BY l.LOGICALREF";
+        $stficheRef = (int) ($head['stfiche_ref'] ?? $logicalRef);
+        $invoiceRef = (int) ($head['invoice_ref'] ?? 0);
+
+        if ($belgeTipi === 'fatura' && $stficheRef < 1 && $invoiceRef > 0) {
+            $lineSql = "SELECT
+                            l.LOGICALREF AS line_ref,
+                            COALESCE(l.LINETYPE, 0) AS linetype,
+                            COALESCE(l.PARENTLNREF, 0) AS parent_ln_ref,
+                            COALESCE(i.NAME, l.LINEEXP, '') AS urun_adi,
+                            COALESCE(l.AMOUNT, 0) AS miktar,
+                            COALESCE(l.PRICE, 0) AS birim_fiyat,
+                            COALESCE(l.TOTAL, 0) AS brut_tutar,
+                            COALESCE(l.LINENET, l.TOTAL, 0) AS linenet,
+                            COALESCE(l.DISTDISC, 0) AS dist_disc
+                        FROM {$line} l
+                        LEFT JOIN {$items} i ON i.LOGICALREF = l.STOCKREF
+                        WHERE l.INVOICEREF = :logicalref
+                        ORDER BY l.LOGICALREF";
+            $lineParams = ['logicalref' => $invoiceRef];
+        } else {
+            $lineSql = "SELECT
+                            l.LOGICALREF AS line_ref,
+                            COALESCE(l.LINETYPE, 0) AS linetype,
+                            COALESCE(l.PARENTLNREF, 0) AS parent_ln_ref,
+                            COALESCE(i.NAME, l.LINEEXP, '') AS urun_adi,
+                            COALESCE(l.AMOUNT, 0) AS miktar,
+                            COALESCE(l.PRICE, 0) AS birim_fiyat,
+                            COALESCE(l.TOTAL, 0) AS brut_tutar,
+                            COALESCE(l.LINENET, l.TOTAL, 0) AS linenet,
+                            COALESCE(l.DISTDISC, 0) AS dist_disc
+                        FROM {$line} l
+                        LEFT JOIN {$items} i ON i.LOGICALREF = l.STOCKREF
+                        WHERE l.[{$fkCol}] = :logicalref
+                        ORDER BY l.LOGICALREF";
+            $lineParams = ['logicalref' => $stficheRef > 0 ? $stficheRef : $logicalRef];
+        }
 
         $lineStmt = $this->logoDb->getConnection()->prepare($lineSql);
-        $lineStmt->execute(['logicalref' => $logicalRef]);
+        $lineStmt->execute($lineParams);
         $lines = $lineStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $kalemler = $this->buildKalemlerFromLines($lines);
@@ -319,7 +436,9 @@ final class LogoDocumentRepository
         return [
             'logo_logicalref' => (int) $head['logo_logicalref'],
             'belge_tipi' => $belgeTipi,
-            'belge_no' => (string) ($head['belge_no'] ?? ''),
+            'belge_no' => self::trimNo($head['belge_no'] ?? ''),
+            'fis_no' => self::trimNo($head['fis_no'] ?? $head['belge_no'] ?? ''),
+            'doc_no' => self::trimNo($head['doc_no'] ?? ''),
             // DATE_ (iş tarihi) + CAPIBLOCK_CREADEDDATE saati — ayrı "saat" alanı yok
             'tarih' => self::formatDateWithLogoCreatedTime(
                 $head['tarih'] ?? null,
@@ -418,6 +537,11 @@ final class LogoDocumentRepository
     private function escapeLike(string $value): string
     {
         return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
+    }
+
+    private static function trimNo(mixed $value): string
+    {
+        return trim((string) ($value ?? ''));
     }
 
     private static function formatDate(mixed $value): ?string

@@ -623,8 +623,20 @@ final class DocumentsController
         // file_type gönderilmediyse yalnızca photo/attachment otomatik tespit edilir.
         // signed_document asla otomatik atanmaz; açıkça gönderilmelidir.
         if ($fileType === '') {
+            error_log('UPLOAD DEBUG: ' . json_encode([
+                'php_error' => $uploaded->getError(),
+                'size' => $uploaded->getSize(),
+                'client_filename' => $uploaded->getClientFilename(),
+                'client_media_type' => $uploaded->getClientMediaType(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             $detectedMime = $this->mimeValidator->detectMime($uploaded);
             if ($detectedMime === null) {
+                error_log('UPLOAD READ DEBUG: ' . json_encode([
+                    'step' => 'DocumentsController::upload',
+                    'fail_reason' => 'detectMime_returned_null',
+                    'function' => 'FileMimeValidator::detectMime',
+                    'next' => 'return 422 Dosya içeriği okunamadı',
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 return JsonResponse::error($response, 'Dosya içeriği okunamadı', 422);
             }
 

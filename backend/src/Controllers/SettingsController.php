@@ -53,6 +53,15 @@ final class SettingsController
             $firmaTelefon = $this->optionalString($body['firma_telefon'] ?? null);
             $firmaVkn = $this->optionalString($body['firma_vkn'] ?? null);
             $firmaEmail = $this->optionalString($body['firma_email'] ?? null);
+            $defaultBelgeTipi = AppSettingsRepository::normalizeBelgeTipi($body['default_belge_tipi'] ?? 'tumu');
+            $rawBelgeTipi = strtolower(trim((string) ($body['default_belge_tipi'] ?? 'tumu')));
+            if ($rawBelgeTipi !== '' && $rawBelgeTipi !== $defaultBelgeTipi) {
+                return JsonResponse::error(
+                    $response,
+                    'default_belge_tipi tumu, siparis, irsaliye veya fatura olmalı',
+                    422
+                );
+            }
 
             if ($firmaUnvani !== null && mb_strlen($firmaUnvani) > 200) {
                 return JsonResponse::error($response, 'firma_unvani en fazla 200 karakter olabilir', 422);
@@ -93,6 +102,7 @@ final class SettingsController
                 $firmaTelefon,
                 $firmaVkn,
                 $firmaEmail,
+                $defaultBelgeTipi,
                 $userId,
             );
             $this->auditLog->log('settings_updated', $userId, null, ClientIp::from($request));
@@ -222,7 +232,8 @@ final class SettingsController
      *   firma_telefon:?string,
      *   firma_vkn:?string,
      *   firma_email:?string,
-     *   firma_logo_url:?string
+     *   firma_logo_url:?string,
+     *   default_belge_tipi:string
      * }
      */
     private function publicPayload(array $row): array
@@ -234,6 +245,7 @@ final class SettingsController
             'firma_vkn' => $row['firma_vkn'],
             'firma_email' => $row['firma_email'],
             'firma_logo_url' => $this->buildLogoUrl($row['firma_logo_path'] ?? null),
+            'default_belge_tipi' => AppSettingsRepository::normalizeBelgeTipi($row['default_belge_tipi'] ?? 'tumu'),
         ];
     }
 

@@ -71,7 +71,7 @@
 
     <div class="page-body">
       <div class="container-xl">
-        <div class="text-secondary mb-3">Belge şablonunda kullanılacak firma bilgileri.</div>
+        <div class="text-secondary mb-3">Belge şablonunda kullanılacak firma bilgileri ve belge araması varsayılanları.</div>
 
         <div id="flash" class="alert d-none" role="alert"></div>
 
@@ -97,6 +97,16 @@
               <div class="mb-3">
                 <label class="form-label" for="firma_email">E-posta</label>
                 <input type="email" class="form-control" id="firma_email" name="firma_email" maxlength="200" placeholder="info@firma.com" autocomplete="off" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="default_belge_tipi">Belge araması varsayılan tipi</label>
+                <select class="form-select" id="default_belge_tipi" name="default_belge_tipi">
+                  <option value="tumu">Tümü</option>
+                  <option value="siparis">Sipariş</option>
+                  <option value="irsaliye">İrsaliye</option>
+                  <option value="fatura">Fatura</option>
+                </select>
+                <div class="form-hint">Belgeler sayfası açıldığında arama filtresinde seçili gelecek belge tipi.</div>
               </div>
               <div class="mb-3">
                 <label class="form-label" for="firma_logo">Firma Logosu</label>
@@ -192,6 +202,19 @@
                 </div>
               </div>
 
+              <hr class="my-4" />
+              <h4 class="mb-3">Lisans</h4>
+              <div class="mb-4">
+                <p class="text-secondary small mb-2">
+                  Anahtar <code>config/.env</code> içindeki <code>LICENSE_API_KEY</code> alanından okunur.
+                  Panel: <code>LICENSE_PANEL_URL</code>/<code>api/license-verify.php</code>.
+                  Sistem kullanımdayken günde en az bir kez otomatik kontrol edilir; bu buton anında zorlar.
+                </p>
+                <div id="license-status-summary" class="text-secondary small mb-2">Durum yükleniyor…</div>
+                <div id="license-check-result" class="alert d-none mb-3" role="status"></div>
+                <button type="button" class="btn btn-outline-primary" id="btn-check-license">Lisansı Kontrol Et</button>
+              </div>
+
               <div class="card border-danger mb-4">
                 <div class="card-header bg-danger-lt">
                   <h4 class="card-title text-danger mb-0">Uygulama veritabanı (APP_DB)</h4>
@@ -241,6 +264,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
   <script src="/admin/js/config.js"></script>
   <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/modal.js"></script>
   <script src="/admin/js/layout.js"></script>
   <script src="/admin/js/settings.js"></script>
 </body>

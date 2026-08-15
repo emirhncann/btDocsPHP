@@ -86,14 +86,14 @@
                 <label class="form-label" for="belge_tipi">Belge Tipi</label>
                 <select class="form-select" id="belge_tipi">
                   <option value="tumu" selected>Tümü</option>
-                  <option value="siparis">siparis</option>
-                  <option value="irsaliye">irsaliye</option>
-                  <option value="fatura">fatura</option>
+                  <option value="siparis">Sipariş</option>
+                  <option value="irsaliye">İrsaliye</option>
+                  <option value="fatura">Fatura</option>
                 </select>
               </div>
               <div class="col-md-3">
-                <label class="form-label" for="belge_no">Belge No</label>
-                <input type="text" class="form-control" id="belge_no" placeholder="opsiyonel" />
+                <label class="form-label" for="belge_no">Fiş / Belge No</label>
+                <input type="text" class="form-control" id="belge_no" placeholder="fiş no veya belge no" />
               </div>
             </div>
 
@@ -111,9 +111,9 @@
               <div class="col-12">
                 <label class="form-label d-block">Hızlı tarih</label>
                 <div class="btn-group" role="group" aria-label="Hızlı tarih seçimi">
+                  <button type="button" class="btn btn-outline-primary" data-date-quick="all">Tümü</button>
                   <button type="button" class="btn btn-outline-primary" data-date-quick="today">Bugün</button>
                   <button type="button" class="btn btn-outline-primary" data-date-quick="yesterday">Dün</button>
-                  <button type="button" class="btn btn-outline-primary" data-date-quick="ytd">Yılbaşından İtibaren</button>
                 </div>
               </div>
               <div class="col-md-3">
@@ -153,7 +153,7 @@
             <table class="table table-vcenter card-table table-hover">
               <thead>
                 <tr>
-                  <th>Belge No</th>
+                  <th>Fiş No / Belge No</th>
                   <th>Tip</th>
                   <th>Cari</th>
                   <th>Tarih</th>

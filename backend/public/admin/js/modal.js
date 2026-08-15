@@ -3,6 +3,7 @@
 
   var root = null;
   var dialog = null;
+  var headerEl = null;
   var titleEl = null;
   var bodyEl = null;
   var footerEl = null;
@@ -20,7 +21,7 @@
     root.innerHTML =
       '<div class="modal-dialog modal-dialog-centered" role="document">' +
       '<div class="modal-content">' +
-      '<div class="modal-header">' +
+      '<div class="modal-header" id="admin-modal-header">' +
       '<h5 class="modal-title" id="admin-modal-title"></h5>' +
       '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>' +
       "</div>" +
@@ -31,6 +32,7 @@
 
     document.body.appendChild(root);
     dialog = root.querySelector(".modal-dialog");
+    headerEl = root.querySelector("#admin-modal-header");
     titleEl = root.querySelector("#admin-modal-title");
     bodyEl = root.querySelector("#admin-modal-body");
     footerEl = root.querySelector("#admin-modal-footer");
@@ -67,18 +69,30 @@
     else if (size === "xl") dialog.classList.add("modal-xl");
   }
 
+  function setVariant(variant) {
+    ensureDom();
+    headerEl.className = "modal-header";
+    if (variant === "danger") {
+      headerEl.classList.add("bg-danger-lt", "text-danger");
+    } else if (variant === "warning") {
+      headerEl.classList.add("bg-warning-lt");
+    }
+  }
+
   /**
    * @param {object} options
    * @param {string} [options.title]
    * @param {string} [options.bodyHtml]
    * @param {string} [options.footerHtml]
    * @param {'sm'|'lg'|'xl'|''} [options.size]
+   * @param {'danger'|'warning'|''} [options.variant]
    * @param {function():void} [options.onHidden]
    */
   function open(options) {
     options = options || {};
     ensureDom();
     setSize(options.size || "lg");
+    setVariant(options.variant || "");
     titleEl.textContent = options.title || "";
     bodyEl.innerHTML = options.bodyHtml || "";
     footerEl.innerHTML = options.footerHtml || "";

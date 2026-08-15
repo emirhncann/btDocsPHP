@@ -9,6 +9,7 @@
   var firmaTelefon = document.getElementById("firma_telefon");
   var firmaVkn = document.getElementById("firma_vkn");
   var firmaEmail = document.getElementById("firma_email");
+  var defaultBelgeTipi = document.getElementById("default_belge_tipi");
   var firmaLogoInput = document.getElementById("firma_logo");
   var logoPreviewWrap = document.getElementById("firma-logo-preview-wrap");
   var logoPreview = document.getElementById("firma-logo-preview");
@@ -32,6 +33,9 @@
   var btnTest = document.getElementById("btn-test-infra");
   var btnTestApp = document.getElementById("btn-test-app");
   var btnSaveInfra = document.getElementById("btn-save-infra");
+  var btnCheckLicense = document.getElementById("btn-check-license");
+  var licenseCheckResult = document.getElementById("license-check-result");
+  var licenseStatusSummary = document.getElementById("license-status-summary");
   var infraFlash = document.getElementById("infra-flash");
   var infraTestResult = document.getElementById("infra-test-result");
   var infraAppTestResult = document.getElementById("infra-app-test-result");
@@ -168,9 +172,45 @@
       firmaTelefon.value = data.firma_telefon || "";
       if (firmaVkn) firmaVkn.value = data.firma_vkn || "";
       if (firmaEmail) firmaEmail.value = data.firma_email || "";
+      if (defaultBelgeTipi) defaultBelgeTipi.value = data.default_belge_tipi || "tumu";
       applyLogoPreview(data.firma_logo_url || null);
     } catch (err) {
       showFlash((err && err.message) || "Ayarlar yüklenemedi", "error");
+    }
+  }
+
+  function showLicenseCheckResult(ok, msg) {
+    if (!licenseCheckResult) return;
+    licenseCheckResult.textContent = msg;
+    licenseCheckResult.classList.remove("d-none", "alert-danger", "alert-success", "alert-warning");
+    licenseCheckResult.classList.add(ok ? "alert-success" : "alert-danger");
+  }
+
+  function renderLicenseSummary(data) {
+    if (!licenseStatusSummary || !data) return;
+    var parts = [];
+    parts.push(data.is_valid ? "Geçerli" : "Geçersiz / süresi dolmuş");
+    if (data.bitis_tarihi) parts.push("bitiş: " + data.bitis_tarihi);
+    if (data.kalan_gun != null) parts.push("kalan: " + data.kalan_gun + " gün");
+    if (data.last_successful_check_at) {
+      parts.push("son başarılı kontrol: " + data.last_successful_check_at);
+    } else {
+      parts.push("henüz başarılı kontrol yok");
+    }
+    if (data.writes_allowed === false) {
+      parts.push("yazma kilitli");
+    }
+    licenseStatusSummary.textContent = parts.join(" · ");
+  }
+
+  async function loadLicenseStatus() {
+    if (!licenseStatusSummary) return;
+    try {
+      var data = await Api.get("/api/admin/license-status");
+      renderLicenseSummary(data || {});
+    } catch (err) {
+      licenseStatusSummary.textContent =
+        (err && err.message) || "Lisans durumu okunamadı";
     }
   }
 
@@ -200,12 +240,14 @@
         firma_telefon: firmaTelefon.value,
         firma_vkn: firmaVkn ? firmaVkn.value : "",
         firma_email: firmaEmail ? firmaEmail.value : "",
+        default_belge_tipi: defaultBelgeTipi ? defaultBelgeTipi.value : "tumu",
       });
       firmaUnvani.value = res.firma_unvani || "";
       firmaAdres.value = res.firma_adres || "";
       firmaTelefon.value = res.firma_telefon || "";
       if (firmaVkn) firmaVkn.value = res.firma_vkn || "";
       if (firmaEmail) firmaEmail.value = res.firma_email || "";
+      if (defaultBelgeTipi) defaultBelgeTipi.value = res.default_belge_tipi || "tumu";
       applyLogoPreview(res.firma_logo_url || null);
       if (savedEl) {
         savedEl.classList.remove("d-none");
@@ -260,6 +302,31 @@
         showFlash((err && err.message) || "Logo kaldırılamadı", "error");
       } finally {
         btnRemoveLogo.disabled = false;
+      }
+    });
+  }
+
+  if (btnCheckLicense) {
+    btnCheckLicense.addEventListener("click", async function () {
+      hideInfraFlash();
+      btnCheckLicense.disabled = true;
+      try {
+        var res = await Api.post("/api/admin/license/check", {});
+        renderLicenseSummary(res || {});
+        showLicenseCheckResult(true, (res && res.message) || "Lisans kontrolü tamamlandı");
+      } catch (err) {
+        var data = err && err.data;
+        if (data) {
+          renderLicenseSummary(data);
+          showLicenseCheckResult(
+            false,
+            data.message || data.error || (err && err.message) || "Kontrol başarısız"
+          );
+        } else {
+          showLicenseCheckResult(false, (err && err.message) || "Kontrol başarısız");
+        }
+      } finally {
+        btnCheckLicense.disabled = false;
       }
     });
   }
@@ -381,4 +448,5 @@
 
   loadSettings();
   loadInfra();
+  loadLicenseStatus();
 })();

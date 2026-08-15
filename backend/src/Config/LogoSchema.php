@@ -87,8 +87,13 @@ final class LogoSchema
     }
 
     /**
-     * İrsaliye / fatura ayrımı için TRCODE listeleri (virgülle).
-     * Siparişte genelde boş bırakılır (tüm ORFICHE).
+     * TRCODE listeleri (virgülle).
+     * Sipariş: ORFICHE (boş = filtre yok)
+     * İrsaliye: STFICHE (6 alış, 7 satış)
+     * Fatura: INVOICE — 1 perakende, 2 toptan, 3 verilen hizmet, 4 alınan hizmet, 7 ana fatura hacmi.
+     *
+     * Eski .env 8,9 STFICHE fatura koduydu; INVOICE için 1,2,3,4,7 kullanılır.
+     * 6,7 STFICHE irsaliye kodudur; INVOICE'da 7 gerçek fatura kaydı olabilir, dokunulmaz.
      *
      * @return list<int>
      */
@@ -97,7 +102,7 @@ final class LogoSchema
         $raw = match ($belgeTipi) {
             'siparis' => Settings::get('LOGO_TRCODES_SIPARIS', '') ?? '',
             'irsaliye' => Settings::get('LOGO_TRCODES_IRSALIYE', '6,7') ?? '6,7',
-            'fatura' => Settings::get('LOGO_TRCODES_FATURA', '8,9') ?? '8,9',
+            'fatura' => Settings::get('LOGO_TRCODES_FATURA', '1,2,3,4,7') ?? '1,2,3,4,7',
             default => '',
         };
 
@@ -109,7 +114,36 @@ final class LogoSchema
             }
         }
 
+        if ($belgeTipi === 'fatura') {
+            if ($codes === [] || self::isLegacyStficheFaturaCodes($codes)) {
+                return [1, 2, 3, 4, 7];
+            }
+            foreach ([4, 7] as $need) {
+                if (!in_array($need, $codes, true)) {
+                    $codes[] = $need;
+                }
+            }
+        }
+
         return $codes;
+    }
+
+    /**
+     * @param list<int> $codes
+     */
+    private static function isLegacyStficheFaturaCodes(array $codes): bool
+    {
+        if ($codes === []) {
+            return true;
+        }
+
+        foreach ($codes as $code) {
+            if (!in_array($code, [8, 9], true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

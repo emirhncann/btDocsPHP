@@ -22,6 +22,7 @@ final class AppSettingsRepository
      *   firma_vkn:?string,
      *   firma_email:?string,
      *   firma_logo_path:?string,
+     *   default_belge_tipi:string,
      *   updated_at:?string,
      *   updated_by:?int
      * }
@@ -32,7 +33,7 @@ final class AppSettingsRepository
 
         $stmt = $this->db->getConnection()->query(
             'SELECT TOP 1 firma_unvani, firma_adres, firma_telefon, firma_vkn, firma_email,
-                    firma_logo_path, updated_at, updated_by
+                    firma_logo_path, default_belge_tipi, updated_at, updated_by
              FROM dbo.AppSettings
              WHERE id = 1'
         );
@@ -52,6 +53,7 @@ final class AppSettingsRepository
      *   firma_vkn:?string,
      *   firma_email:?string,
      *   firma_logo_path:?string,
+     *   default_belge_tipi:string,
      *   updated_at:?string,
      *   updated_by:?int
      * }
@@ -62,6 +64,7 @@ final class AppSettingsRepository
         ?string $firmaTelefon,
         ?string $firmaVkn,
         ?string $firmaEmail,
+        string $defaultBelgeTipi,
         int $updatedBy,
     ): array {
         $this->ensureRow();
@@ -73,6 +76,7 @@ final class AppSettingsRepository
                  firma_telefon = :firma_telefon,
                  firma_vkn = :firma_vkn,
                  firma_email = :firma_email,
+                 default_belge_tipi = :default_belge_tipi,
                  updated_at = GETDATE(),
                  updated_by = :updated_by
              WHERE id = 1'
@@ -83,6 +87,7 @@ final class AppSettingsRepository
             'firma_telefon' => $firmaTelefon,
             'firma_vkn' => $firmaVkn,
             'firma_email' => $firmaEmail,
+            'default_belge_tipi' => $defaultBelgeTipi,
             'updated_by' => $updatedBy,
         ]);
 
@@ -132,8 +137,8 @@ final class AppSettingsRepository
 
         $stmt = $this->db->getConnection()->prepare(
             'INSERT INTO dbo.AppSettings
-                (id, firma_unvani, firma_adres, firma_telefon, firma_vkn, firma_email, firma_logo_path)
-             VALUES (1, NULL, NULL, NULL, NULL, NULL, NULL)'
+                (id, firma_unvani, firma_adres, firma_telefon, firma_vkn, firma_email, firma_logo_path, default_belge_tipi)
+             VALUES (1, NULL, NULL, NULL, NULL, NULL, NULL, \'tumu\')'
         );
         $stmt->execute();
     }
@@ -147,6 +152,7 @@ final class AppSettingsRepository
      *   firma_vkn:?string,
      *   firma_email:?string,
      *   firma_logo_path:?string,
+     *   default_belge_tipi:string,
      *   updated_at:?string,
      *   updated_by:?int
      * }
@@ -162,6 +168,7 @@ final class AppSettingsRepository
             'firma_vkn' => $this->nullableString($row['firma_vkn'] ?? null),
             'firma_email' => $this->nullableString($row['firma_email'] ?? null),
             'firma_logo_path' => $this->nullableString($row['firma_logo_path'] ?? null),
+            'default_belge_tipi' => self::normalizeBelgeTipi($row['default_belge_tipi'] ?? null),
             'updated_at' => $updatedAt instanceof \DateTimeInterface
                 ? $updatedAt->format('Y-m-d H:i:s')
                 : ($updatedAt !== null ? (string) $updatedAt : null),
@@ -179,6 +186,7 @@ final class AppSettingsRepository
      *   firma_vkn:?string,
      *   firma_email:?string,
      *   firma_logo_path:?string,
+     *   default_belge_tipi:string,
      *   updated_at:?string,
      *   updated_by:?int
      * }
@@ -192,9 +200,20 @@ final class AppSettingsRepository
             'firma_vkn' => null,
             'firma_email' => null,
             'firma_logo_path' => null,
+            'default_belge_tipi' => 'tumu',
             'updated_at' => null,
             'updated_by' => null,
         ];
+    }
+
+    public static function normalizeBelgeTipi(mixed $value): string
+    {
+        $s = strtolower(trim((string) ($value ?? '')));
+        if (in_array($s, ['tumu', 'siparis', 'irsaliye', 'fatura'], true)) {
+            return $s;
+        }
+
+        return 'tumu';
     }
 
     private function nullableString(mixed $value): ?string

@@ -11,11 +11,13 @@ use App\Controllers\CariController;
 use App\Controllers\DocumentsController;
 use App\Controllers\HealthController;
 use App\Controllers\InfraSettingsController;
+use App\Controllers\LicenseStatusController;
 use App\Controllers\MeController;
 use App\Controllers\PublicBelgeController;
 use App\Controllers\SettingsController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CorsMiddleware;
+use App\Middleware\LicenseGuardMiddleware;
 use App\Middleware\RateLimitMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Repositories\AccessTokenRepository;
@@ -23,6 +25,7 @@ use App\Repositories\AppSettingsRepository;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\DocumentFileRepository;
 use App\Repositories\DocumentRepository;
+use App\Repositories\LicenseStatusRepository;
 use App\Repositories\LogoDocumentRepository;
 use App\Repositories\StatsRepository;
 use App\Repositories\UserRepository;
@@ -31,6 +34,7 @@ use App\Services\DocumentStorageService;
 use App\Services\EnvFileService;
 use App\Services\FileMimeValidator;
 use App\Services\JwtService;
+use App\Services\LicenseCheckService;
 use App\Services\LogoDbConnection;
 use App\Services\PublicAccessGuard;
 use App\Services\RateLimiter;
@@ -63,8 +67,10 @@ $containerBuilder->addDefinitions([
     DocumentFileRepository::class => \DI\autowire(),
     StatsRepository::class => \DI\autowire(),
     AppSettingsRepository::class => \DI\autowire(),
+    LicenseStatusRepository::class => \DI\autowire(),
     LogoDocumentRepository::class => \DI\autowire(),
     \App\Services\LogoNoteService::class => \DI\autowire(),
+    LicenseCheckService::class => \DI\autowire(),
     AccessTokenRepository::class => \DI\autowire(),
     PublicAccessGuard::class => \DI\autowire(),
     HealthController::class => \DI\autowire(),
@@ -75,11 +81,13 @@ $containerBuilder->addDefinitions([
     DocumentsController::class => \DI\autowire(),
     SettingsController::class => \DI\autowire(),
     InfraSettingsController::class => \DI\autowire(),
+    LicenseStatusController::class => \DI\autowire(),
     CariController::class => \DI\autowire(),
     PublicBelgeController::class => \DI\autowire(),
     AuditLogController::class => \DI\autowire(),
     CorsMiddleware::class => \DI\autowire(),
     AuthMiddleware::class => \DI\autowire(),
+    LicenseGuardMiddleware::class => \DI\autowire(),
 ]);
 
 $container = $containerBuilder->build();
@@ -100,6 +108,8 @@ if (str_ends_with($scriptName, '/index.php')) {
 
 $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
+// Yazma isteklerinde LicenseStatus okur (dış servise gitmez). Cors dışında kalsın ki 403 CORS alsın.
+$app->add(LicenseGuardMiddleware::class);
 $app->add(CorsMiddleware::class);
 
 $displayErrorDetails = !SafeError::isProduction();
@@ -165,6 +175,13 @@ $app->group('/api', function (RouteCollectorProxy $group) {
 
 // Stats: tüm roller (admin/user/readonly) — RoleMiddleware YOK
 $app->get('/api/admin/stats', [AdminStatsController::class, 'index'])
+    ->add(AuthMiddleware::class);
+
+$app->get('/api/admin/license-status', [LicenseStatusController::class, 'show'])
+    ->add(AuthMiddleware::class);
+
+$app->post('/api/admin/license/check', [LicenseStatusController::class, 'check'])
+    ->add(RoleMiddleware::allow('admin'))
     ->add(AuthMiddleware::class);
 
 $app->group('/api/admin', function (RouteCollectorProxy $group) {

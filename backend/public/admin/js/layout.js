@@ -118,6 +118,73 @@
     });
   }
 
+  var licenseModalShownThisPage = false;
+
+  function formatBitis(value) {
+    if (!value) return "";
+    var s = String(value).slice(0, 10);
+    var parts = s.split("-");
+    if (parts.length === 3) {
+      return parts[2] + "." + parts[1] + "." + parts[0];
+    }
+    return s;
+  }
+
+  function openLicenseModal(variant, title, bodyText) {
+    if (!window.AdminModal || typeof AdminModal.open !== "function") {
+      console.warn("AdminModal yok — lisans uyarısı gösterilemedi (modal.js yüklenmeli)");
+      return;
+    }
+
+    var btnClass = variant === "warning" ? "btn-warning" : "btn-danger";
+    AdminModal.open({
+      title: title,
+      variant: variant,
+      size: "sm",
+      bodyHtml: "<p class='mb-0'>" + bodyText + "</p>",
+      footerHtml:
+        '<button type="button" class="btn ' +
+        btnClass +
+        '" data-bs-dismiss="modal">Anladım</button>',
+    });
+  }
+
+  async function checkAndShowLicenseModal() {
+    if (licenseModalShownThisPage) return;
+    if (!window.Api || !Api.getToken || !Api.getToken()) return;
+
+    try {
+      var data = await Api.get("/api/admin/license-status");
+      if (!data) return;
+
+      if (data.is_valid === false) {
+        licenseModalShownThisPage = true;
+        openLicenseModal(
+          "danger",
+          "Lisans Süresi Doldu",
+          "⚠ Lisansınızın süresi doldu. Yeni veri girişi (dosya yükleme, imzalama, kullanıcı ekleme vb.) yapılamıyor. Lütfen lisansınızı yenileyin."
+        );
+        return;
+      }
+
+      var days = data.kalan_gun;
+      if (data.is_valid === true && days != null && Number(days) <= 15) {
+        licenseModalShownThisPage = true;
+        openLicenseModal(
+          "warning",
+          "Lisans Süresi Yaklaşıyor",
+          "⚠ Lisansınızın süresi " +
+            Number(days) +
+            " gün içinde (" +
+            formatBitis(data.bitis_tarihi) +
+            ") dolacak. Zamanında yenilemeyi unutmayın."
+        );
+      }
+    } catch (_err) {
+      /* sessiz — lisans paneli okunamazsa UI’yi kilitleme */
+    }
+  }
+
   function init(options) {
     options = options || {};
     if (!window.Api || !Api.requireAuth()) return false;
@@ -126,6 +193,7 @@
     bindLogout();
     applyRoleUi(currentUser());
     fillUser();
+    checkAndShowLicenseModal();
     return true;
   }
 
@@ -140,6 +208,7 @@
     canDelete: canDelete,
     canEditNotes: canEditNotes,
     isAdmin: isAdmin,
+    checkAndShowLicenseModal: checkAndShowLicenseModal,
     // geriye dönük alias
     canWrite: canUpload,
   };
