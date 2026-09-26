@@ -160,12 +160,11 @@ final class LogoDocumentRepository
         $params = [];
 
         if ($belgeTipi === 'fatura') {
-            // Fatura listesi INVOICE'dan: perakende (1), toptan (2), verilen hizmet (3).
+            // Fatura listesi yalnızca INVOICE: logo_logicalref = INVOICE.LOGICALREF
             // TOP yok — bugün/dün/tümü filtresindeki tüm kayıtlar gelir.
             $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
-            $stfiche = $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, 'fatura'));
             $sql = "SELECT
-                        COALESCE(st.LOGICALREF, inv.LOGICALREF) AS logo_logicalref,
+                        inv.LOGICALREF AS logo_logicalref,
                         inv.LOGICALREF AS sort_ref,
                         inv.FICHENO AS fis_no,
                         inv.DOCODE AS doc_no,
@@ -176,13 +175,6 @@ final class LogoDocumentRepository
                         c.DEFINITION_ AS cari_unvan
                     FROM {$invoice} inv
                     LEFT JOIN {$clcard} c ON c.LOGICALREF = inv.CLIENTREF
-                    OUTER APPLY (
-                        SELECT TOP 1 s.LOGICALREF
-                        FROM {$stfiche} s
-                        WHERE s.INVOICEREF = inv.LOGICALREF
-                          AND ISNULL(s.CANCELLED, 0) = 0
-                        ORDER BY s.LOGICALREF
-                    ) st
                     WHERE ISNULL(inv.CANCELLED, 0) = 0";
             $dateCol = 'inv.DATE_';
             $ficheCol = 'inv.FICHENO';
@@ -279,7 +271,6 @@ final class LogoDocumentRepository
     ): ?array {
         $this->assertBelgeTipi($belgeTipi);
 
-        $header = $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, $belgeTipi));
         $line = $this->schema->quoteIdent($this->schema->lineTable($firmaNo, $donemNo, $belgeTipi));
         $clcard = $this->schema->quoteIdent($this->schema->clcardTable($firmaNo));
         $items = $this->schema->quoteIdent($this->schema->itemsTable($firmaNo));
@@ -289,61 +280,10 @@ final class LogoDocumentRepository
             throw new \InvalidArgumentException('Geçersiz satır FK kolonu');
         }
 
-        $headerSql = "SELECT TOP 1
-                        h.LOGICALREF AS logo_logicalref,
-                        h.FICHENO AS belge_no,
-                        h.FICHENO AS fis_no,
-                        h.DOCODE AS doc_no,
-                        h.DATE_ AS tarih,
-                        h.CAPIBLOCK_CREADEDDATE AS logo_created_at,
-                        COALESCE(h.TOTALVAT, 0) AS kdv_tutari,
-                        COALESCE(h.NETTOTAL, h.GROSSTOTAL, 0) AS genel_toplam,
-                        c.CODE AS cari_kod,
-                        c.DEFINITION_ AS cari_unvan,
-                        c.ADDR1 AS adres1,
-                        c.ADDR2 AS adres2,
-                        c.CITY AS sehir,
-                        h.LOGICALREF AS stfiche_ref,
-                        0 AS invoice_ref
-                      FROM {$header} h
-                      LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
-                      WHERE h.LOGICALREF = :logicalref
-                        AND ISNULL(h.CANCELLED, 0) = 0";
-
-        // Fatura: önce STFICHE (A3 key), yoksa INVOICE LOGICALREF (hizmet faturası)
         if ($belgeTipi === 'fatura') {
             $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
             $headerSql = "SELECT TOP 1
-                            h.LOGICALREF AS logo_logicalref,
-                            COALESCE(NULLIF(LTRIM(RTRIM(inv.FICHENO)), ''), h.FICHENO) AS belge_no,
-                            COALESCE(NULLIF(LTRIM(RTRIM(inv.FICHENO)), ''), h.FICHENO) AS fis_no,
-                            COALESCE(NULLIF(LTRIM(RTRIM(inv.DOCODE)), ''), h.DOCODE) AS doc_no,
-                            h.DATE_ AS tarih,
-                            COALESCE(inv.CAPIBLOCK_CREADEDDATE, h.CAPIBLOCK_CREADEDDATE) AS logo_created_at,
-                            COALESCE(h.TOTALVAT, 0) AS kdv_tutari,
-                            COALESCE(h.NETTOTAL, h.GROSSTOTAL, 0) AS genel_toplam,
-                            c.CODE AS cari_kod,
-                            c.DEFINITION_ AS cari_unvan,
-                            c.ADDR1 AS adres1,
-                            c.ADDR2 AS adres2,
-                            c.CITY AS sehir,
-                            h.LOGICALREF AS stfiche_ref,
-                            COALESCE(h.INVOICEREF, 0) AS invoice_ref
-                          FROM {$header} h
-                          LEFT JOIN {$invoice} inv ON inv.LOGICALREF = h.INVOICEREF
-                          LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
-                          WHERE h.LOGICALREF = :logicalref
-                            AND ISNULL(h.CANCELLED, 0) = 0";
-        }
-
-        $stmt = $this->logoDb->getConnection()->prepare($headerSql);
-        $stmt->execute(['logicalref' => $logicalRef]);
-        $head = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($head === false && $belgeTipi === 'fatura') {
-            $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
-            $invoiceSql = "SELECT TOP 1
-                            COALESCE(st.LOGICALREF, inv.LOGICALREF) AS logo_logicalref,
+                            inv.LOGICALREF AS logo_logicalref,
                             inv.FICHENO AS belge_no,
                             inv.FICHENO AS fis_no,
                             inv.DOCODE AS doc_no,
@@ -355,34 +295,43 @@ final class LogoDocumentRepository
                             c.DEFINITION_ AS cari_unvan,
                             c.ADDR1 AS adres1,
                             c.ADDR2 AS adres2,
-                            c.CITY AS sehir,
-                            COALESCE(st.LOGICALREF, 0) AS stfiche_ref,
-                            inv.LOGICALREF AS invoice_ref
+                            c.CITY AS sehir
                           FROM {$invoice} inv
                           LEFT JOIN {$clcard} c ON c.LOGICALREF = inv.CLIENTREF
-                          OUTER APPLY (
-                              SELECT TOP 1 s.LOGICALREF
-                              FROM {$header} s
-                              WHERE s.INVOICEREF = inv.LOGICALREF
-                                AND ISNULL(s.CANCELLED, 0) = 0
-                              ORDER BY s.LOGICALREF
-                          ) st
                           WHERE inv.LOGICALREF = :logicalref
                             AND ISNULL(inv.CANCELLED, 0) = 0";
-            $stmt = $this->logoDb->getConnection()->prepare($invoiceSql);
-            $stmt->execute(['logicalref' => $logicalRef]);
-            $head = $stmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $header = $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, $belgeTipi));
+            $headerSql = "SELECT TOP 1
+                            h.LOGICALREF AS logo_logicalref,
+                            h.FICHENO AS belge_no,
+                            h.FICHENO AS fis_no,
+                            h.DOCODE AS doc_no,
+                            h.DATE_ AS tarih,
+                            h.CAPIBLOCK_CREADEDDATE AS logo_created_at,
+                            COALESCE(h.TOTALVAT, 0) AS kdv_tutari,
+                            COALESCE(h.NETTOTAL, h.GROSSTOTAL, 0) AS genel_toplam,
+                            c.CODE AS cari_kod,
+                            c.DEFINITION_ AS cari_unvan,
+                            c.ADDR1 AS adres1,
+                            c.ADDR2 AS adres2,
+                            c.CITY AS sehir
+                          FROM {$header} h
+                          LEFT JOIN {$clcard} c ON c.LOGICALREF = h.CLIENTREF
+                          WHERE h.LOGICALREF = :logicalref
+                            AND ISNULL(h.CANCELLED, 0) = 0";
         }
+
+        $stmt = $this->logoDb->getConnection()->prepare($headerSql);
+        $stmt->execute(['logicalref' => $logicalRef]);
+        $head = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($head === false) {
             return null;
         }
 
         // LINETYPE: 0 malzeme, 2 indirim, 4 hizmet, 6 set, 7 set detayı (bkz. LOGO_SCHEMA.md)
-        $stficheRef = (int) ($head['stfiche_ref'] ?? $logicalRef);
-        $invoiceRef = (int) ($head['invoice_ref'] ?? 0);
-
-        if ($belgeTipi === 'fatura' && $stficheRef < 1 && $invoiceRef > 0) {
+        if ($belgeTipi === 'fatura') {
             $lineSql = "SELECT
                             l.LOGICALREF AS line_ref,
                             COALESCE(l.LINETYPE, 0) AS linetype,
@@ -397,7 +346,7 @@ final class LogoDocumentRepository
                         LEFT JOIN {$items} i ON i.LOGICALREF = l.STOCKREF
                         WHERE l.INVOICEREF = :logicalref
                         ORDER BY l.LOGICALREF";
-            $lineParams = ['logicalref' => $invoiceRef];
+            $lineParams = ['logicalref' => $logicalRef];
         } else {
             $lineSql = "SELECT
                             l.LOGICALREF AS line_ref,
@@ -413,7 +362,7 @@ final class LogoDocumentRepository
                         LEFT JOIN {$items} i ON i.LOGICALREF = l.STOCKREF
                         WHERE l.[{$fkCol}] = :logicalref
                         ORDER BY l.LOGICALREF";
-            $lineParams = ['logicalref' => $stficheRef > 0 ? $stficheRef : $logicalRef];
+            $lineParams = ['logicalref' => $logicalRef];
         }
 
         $lineStmt = $this->logoDb->getConnection()->prepare($lineSql);
@@ -525,6 +474,128 @@ final class LogoDocumentRepository
         }
 
         return $kalemler;
+    }
+
+    /**
+     * Cari karttan SMS için telefonlar (TELNRS1 / TELNRS2).
+     * Geçerli ve tekil numaralar döner (örn. ["5455613675", "5321112233"]).
+     *
+     * @return list<string>
+     */
+    public function findCariTelefonlar(int $firmaNo, string $cariKod): array
+    {
+        $cariKod = trim($cariKod);
+        if ($firmaNo < 1 || $cariKod === '') {
+            return [];
+        }
+
+        $table = $this->schema->quoteIdent($this->schema->clcardTable($firmaNo));
+        $sql = "SELECT TOP 1
+                    c.TELNRS1 AS tel1,
+                    c.TELNRS2 AS tel2
+                FROM {$table} c
+                WHERE LTRIM(RTRIM(c.CODE)) = :cari_kod";
+
+        $stmt = $this->logoDb->getConnection()->prepare($sql);
+        $stmt->execute(['cari_kod' => $cariKod]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return [];
+        }
+
+        $phones = [];
+        foreach (['tel1', 'tel2'] as $key) {
+            $normalized = self::normalizeGsm($row[$key] ?? null);
+            if ($normalized !== null && !in_array($normalized, $phones, true)) {
+                $phones[] = $normalized;
+            }
+        }
+
+        return $phones;
+    }
+
+    /**
+     * Cari karttan ilk geçerli SMS telefonu (TELNRS1 / TELNRS2).
+     */
+    public function findCariTelefon(int $firmaNo, string $cariKod): ?string
+    {
+        $phones = $this->findCariTelefonlar($firmaNo, $cariKod);
+
+        return $phones[0] ?? null;
+    }
+
+    /**
+     * Belge iş tarihi (DATE_) — YYYY-MM-DD.
+     */
+    public function findDocumentTarih(
+        int $firmaNo,
+        int $donemNo,
+        int $logicalRef,
+        string $belgeTipi,
+    ): ?string {
+        if ($firmaNo < 1 || $donemNo < 1 || $logicalRef < 1) {
+            return null;
+        }
+
+        try {
+            $this->assertBelgeTipi($belgeTipi);
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        if ($belgeTipi === 'fatura') {
+            $invoice = $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo));
+            $sqlInv = "SELECT TOP 1 inv.DATE_ AS tarih
+                       FROM {$invoice} inv
+                       WHERE inv.LOGICALREF = :logicalref
+                         AND ISNULL(inv.CANCELLED, 0) = 0";
+            $stmtInv = $this->logoDb->getConnection()->prepare($sqlInv);
+            $stmtInv->execute(['logicalref' => $logicalRef]);
+            $rowInv = $stmtInv->fetch(PDO::FETCH_ASSOC);
+
+            return $rowInv === false ? null : self::formatDate($rowInv['tarih'] ?? null);
+        }
+
+        $header = $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, $belgeTipi));
+        $sql = "SELECT TOP 1 h.DATE_ AS tarih
+                FROM {$header} h
+                WHERE h.LOGICALREF = :logicalref
+                  AND ISNULL(h.CANCELLED, 0) = 0";
+        $stmt = $this->logoDb->getConnection()->prepare($sql);
+        $stmt->execute(['logicalref' => $logicalRef]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : self::formatDate($row['tarih'] ?? null);
+    }
+
+    /**
+     * Logo telefon alanını NetGSM no formatına çevirir (10 hane, 5xx...).
+     */
+    public static function normalizeGsm(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $digits = preg_replace('/\D+/', '', (string) $value) ?? '';
+        if ($digits === '') {
+            return null;
+        }
+
+        // 905xxxxxxxxx → 5xxxxxxxxx
+        if (str_starts_with($digits, '90') && strlen($digits) === 12) {
+            $digits = substr($digits, 2);
+        }
+        // 05xxxxxxxxx → 5xxxxxxxxx
+        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
+            $digits = substr($digits, 1);
+        }
+
+        if (strlen($digits) !== 10 || !str_starts_with($digits, '5')) {
+            return null;
+        }
+
+        return $digits;
     }
 
     private function assertBelgeTipi(string $belgeTipi): void

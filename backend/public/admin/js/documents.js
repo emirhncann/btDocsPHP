@@ -798,7 +798,7 @@
       saveBtn.disabled = true;
       if (savedEl) savedEl.classList.add("d-none");
       try {
-        var res = await Api.put(
+        var res = await Api.post(
           "/api/documents/" + encodeURIComponent(currentUid) + "/notes",
           { notes: notesEl.value }
         );
@@ -849,11 +849,13 @@
         if (!confirm("Bu dosyayı silmek istediğinize emin misiniz?")) return;
         btn.disabled = true;
         try {
-          await Api.del(
+          await Api.post(
             "/api/documents/" +
               encodeURIComponent(currentUid) +
               "/files/" +
-              encodeURIComponent(fileId)
+              encodeURIComponent(fileId) +
+              "/delete",
+            {}
           );
           showFlash("Dosya silindi", "ok");
           await refreshDocumentFiles(filesList);

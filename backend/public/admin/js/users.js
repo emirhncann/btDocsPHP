@@ -242,7 +242,7 @@
           });
           showFlash("Kullanıcı oluşturuldu", "ok");
         } else {
-          await Api.put("/api/admin/users/" + user.id, {
+          await Api.post("/api/admin/users/" + user.id, {
             full_name: fullName,
             role: role,
             is_active: form.querySelector("#user-is-active").checked,
@@ -330,7 +330,7 @@
     if (btn.classList.contains("btn-deactivate")) {
       if (!confirm("Kullanıcı pasifleştirilsin mi?")) return;
       try {
-        await Api.del("/api/admin/users/" + id);
+        await Api.post("/api/admin/users/" + id + "/deactivate", {});
         showFlash("Kullanıcı pasifleştirildi", "ok");
         await loadUsers();
       } catch (err) {

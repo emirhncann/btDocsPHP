@@ -71,6 +71,7 @@ $containerBuilder->addDefinitions([
     LogoDocumentRepository::class => \DI\autowire(),
     \App\Services\LogoNoteService::class => \DI\autowire(),
     LicenseCheckService::class => \DI\autowire(),
+    \App\Services\SmsService::class => \DI\autowire(),
     AccessTokenRepository::class => \DI\autowire(),
     PublicAccessGuard::class => \DI\autowire(),
     HealthController::class => \DI\autowire(),
@@ -162,8 +163,13 @@ $app->group('/api', function (RouteCollectorProxy $group) {
     $group->get('/documents/{uid}/detail', [DocumentsController::class, 'detail']);
     $group->put('/documents/{uid}/notes', [DocumentsController::class, 'updateNotes'])
         ->add(RoleMiddleware::allow('admin', 'user'));
+    // IIS FastCGI / WebDAV çoğu kurulumda PUT ve DELETE'i 405 ile keser.
+    $group->post('/documents/{uid}/notes', [DocumentsController::class, 'updateNotes'])
+        ->add(RoleMiddleware::allow('admin', 'user'));
     $group->get('/documents/{uid}/files/{fileId:[0-9]+}', [DocumentsController::class, 'downloadFile']);
     $group->delete('/documents/{uid}/files/{fileId:[0-9]+}', [DocumentsController::class, 'deleteFile'])
+        ->add(RoleMiddleware::allow('admin'));
+    $group->post('/documents/{uid}/files/{fileId:[0-9]+}/delete', [DocumentsController::class, 'deleteFile'])
         ->add(RoleMiddleware::allow('admin'));
     $group->post('/documents/{uid}/files/{fileId:[0-9]+}/view-link', [DocumentsController::class, 'createViewLink']);
     $group->get('/documents/{uid}', [DocumentsController::class, 'show']);
@@ -189,16 +195,22 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) {
     $group->get('/users/{id:[0-9]+}', [AdminUsersController::class, 'show']);
     $group->post('/users', [AdminUsersController::class, 'create']);
     $group->put('/users/{id:[0-9]+}', [AdminUsersController::class, 'update']);
+    // IIS FastCGI / WebDAV çoğu kurulumda PUT ve DELETE'i 405 ile keser.
+    $group->post('/users/{id:[0-9]+}', [AdminUsersController::class, 'update']);
     $group->post('/users/{id:[0-9]+}/reset-password', [AdminUsersController::class, 'resetPassword']);
     $group->delete('/users/{id:[0-9]+}', [AdminUsersController::class, 'delete']);
+    $group->post('/users/{id:[0-9]+}/deactivate', [AdminUsersController::class, 'delete']);
     $group->get('/audit-log', [AuditLogController::class, 'index']);
     $group->put('/settings', [SettingsController::class, 'update']);
+    $group->post('/settings', [SettingsController::class, 'update']);
     $group->post('/settings/logo', [SettingsController::class, 'uploadLogo']);
     $group->delete('/settings/logo', [SettingsController::class, 'deleteLogo']);
+    $group->post('/settings/logo/delete', [SettingsController::class, 'deleteLogo']);
     $group->get('/settings/infra', [InfraSettingsController::class, 'show']);
     $group->post('/settings/infra/test-connection', [InfraSettingsController::class, 'testConnection']);
     $group->post('/settings/infra/test-app-connection', [InfraSettingsController::class, 'testAppConnection']);
     $group->put('/settings/infra', [InfraSettingsController::class, 'update']);
+    $group->post('/settings/infra', [InfraSettingsController::class, 'update']);
 })
     ->add(RoleMiddleware::allow('admin'))
     ->add(AuthMiddleware::class);

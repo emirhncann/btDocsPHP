@@ -21,8 +21,8 @@ final class AppDbConnection
 
         $host = Settings::require('APP_DB_HOST');
         $name = Settings::require('APP_DB_NAME');
-        $user = Settings::get('APP_DB_USER', '') ?? '';
-        $pass = Settings::get('APP_DB_PASS', '') ?? '';
+        $user = trim((string) (Settings::get('APP_DB_USER', '') ?? ''));
+        $pass = (string) (Settings::get('APP_DB_PASS', '') ?? '');
 
         $dsn = sprintf(
             'sqlsrv:Server=%s;Database=%s;TrustServerCertificate=yes',
@@ -30,13 +30,19 @@ final class AppDbConnection
             $name
         );
 
+        // pdo_sqlsrv: Trusted_Connection DSN anahtarı yok; kullanıcı/şifre boş → Windows Auth
         try {
-            $this->pdo = new PDO($dsn, $user, $pass, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-                // ATTR_PERSISTENT: pdo_sqlsrv desteklemez; belirtilmez = kapalı (istenilen davranış)
-            ]);
+            $this->pdo = new PDO(
+                $dsn,
+                $user === '' ? null : $user,
+                $user === '' ? null : $pass,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                    // ATTR_PERSISTENT: pdo_sqlsrv desteklemez; belirtilmez = kapalı (istenilen davranış)
+                ]
+            );
         } catch (PDOException $e) {
             throw new RuntimeException('App DB bağlantı hatası: ' . $e->getMessage(), 0, $e);
         }

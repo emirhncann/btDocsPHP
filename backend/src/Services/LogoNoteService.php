@@ -18,6 +18,9 @@ use PDO;
  *             fatura → INVOICE.LOGICALREF
  *             irsaliye → STFICHE.LOGICALREF
  *             siparis → ORFICHE.LOGICALREF
+ *
+ * Notun Logo UI'da görünmesi için başlık tablosunda TEXTINC=1 gerekir
+ * (INVOICE / STFICHE / ORFICHE).
  */
 final class LogoNoteService
 {
@@ -66,8 +69,8 @@ final class LogoNoteService
 
     /**
      * Belge tipine göre fiş numarası (FICHENO).
-     * fatura → INVOICE.FICHENO (STFICHE.INVOICEREF üzerinden, A3 logicalref ST olduğu için)
-     * irsaliye/siparis → mevcut header tablosu FICHENO (A3 ile aynı)
+     * fatura → INVOICE.FICHENO (match key = INVOICE.LOGICALREF)
+     * irsaliye/siparis → header FICHENO (STFICHE / ORFICHE)
      */
     public function resolveDocNr(
         string $belgeTipi,
@@ -105,8 +108,8 @@ final class LogoNoteService
     }
 
     /**
-     * PERDOC.INFOREF — belgenin kendi LOGICALREF'i.
-     * A3 match key fatura için STFICHE olduğundan INVOICE.LOGICALREF'e çözülür.
+     * PERDOC.INFOREF — match key ile aynı LOGICALREF
+     * (fatura→INVOICE, irsaliye→STFICHE, siparis→ORFICHE).
      */
     public function resolveInfoRef(
         string $belgeTipi,
@@ -114,18 +117,7 @@ final class LogoNoteService
         int $firmaNo,
         int $donemNo,
     ): int {
-        $belgeTipi = strtolower(trim($belgeTipi));
-        if ($belgeTipi !== 'fatura') {
-            // siparis → ORFICHE, irsaliye → STFICHE (A3 match key zaten bunlar)
-            return $logicalRef;
-        }
-
-        return $this->resolveInvoiceLogicalRef(
-            $this->logoDb->getConnection(),
-            $firmaNo,
-            $donemNo,
-            $logicalRef,
-        );
+        return $logicalRef;
     }
 
     /**
@@ -203,6 +195,7 @@ final class LogoNoteService
         if ($row === false) {
             $binary = self::encodeShortString($url);
             $this->insertRow($pdo, $table, $infoTyp, $infoRef, $docTyp, $docNr, $binary);
+            $this->ensureTextInc($pdo, $belgeTipi, $firmaNo, $donemNo, $infoRef);
 
             return [
                 'skipped' => false,
@@ -216,6 +209,9 @@ final class LogoNoteService
         $existingText = self::decodeShortString($existingBytes);
 
         if ($existingText !== '' && str_contains($existingText, $url)) {
+            // Not zaten var; TEXTINC=0 kalmış olabilir — UI için yine set et
+            $this->ensureTextInc($pdo, $belgeTipi, $firmaNo, $donemNo, $infoRef);
+
             return [
                 'skipped' => true,
                 'inserted' => false,
@@ -236,6 +232,7 @@ final class LogoNoteService
             'ldata_hex' => bin2hex($binary),
             'lref' => (int) $row['LREF'],
         ]);
+        $this->ensureTextInc($pdo, $belgeTipi, $firmaNo, $donemNo, $infoRef);
 
         return [
             'skipped' => false,
@@ -243,6 +240,30 @@ final class LogoNoteService
             'updated' => true,
             'truncated' => $merged['truncated'],
         ];
+    }
+
+    /**
+     * Logo UI not göstergesi: başlıkta TEXTINC=1 olmalı.
+     * fatura → INVOICE; irsaliye → STFICHE; siparis → ORFICHE.
+     */
+    private function ensureTextInc(
+        PDO $pdo,
+        string $belgeTipi,
+        int $firmaNo,
+        int $donemNo,
+        int $infoRef,
+    ): void {
+        $table = $belgeTipi === 'fatura'
+            ? $this->schema->quoteIdent($this->schema->invoiceTable($firmaNo, $donemNo))
+            : $this->schema->quoteIdent($this->schema->headerTable($firmaNo, $donemNo, $belgeTipi));
+
+        $stmt = $pdo->prepare(
+            "UPDATE {$table}
+             SET TEXTINC = 1
+             WHERE LOGICALREF = :lref
+               AND ISNULL(TEXTINC, 0) <> 1"
+        );
+        $stmt->execute(['lref' => $infoRef]);
     }
 
     /**
@@ -287,70 +308,23 @@ final class LogoNoteService
         ];
     }
 
-    private function resolveInvoiceLogicalRef(
-        PDO $pdo,
-        int $firmaNo,
-        int $donemNo,
-        int $logicalRef,
-    ): int {
-        $invoice = $this->schema->quoteIdent(
-            $this->schema->invoiceTable($firmaNo, $donemNo)
-        );
-
-        // 1) Zaten INVOICE.LOGICALREF
-        $stmt = $pdo->prepare(
-            "SELECT TOP 1 LOGICALREF FROM {$invoice} WHERE LOGICALREF = :lref"
-        );
-        $stmt->execute(['lref' => $logicalRef]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row !== false) {
-            return (int) $row['LOGICALREF'];
-        }
-
-        // 2) A3 match key = STFICHE.LOGICALREF → INVOICEREF
-        $stfiche = $this->schema->quoteIdent(
-            $this->schema->headerTable($firmaNo, $donemNo, 'fatura')
-        );
-        $stmt = $pdo->prepare(
-            "SELECT TOP 1 h.INVOICEREF
-             FROM {$stfiche} h
-             WHERE h.LOGICALREF = :lref
-               AND ISNULL(h.INVOICEREF, 0) > 0"
-        );
-        $stmt->execute(['lref' => $logicalRef]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row === false) {
-            throw new \RuntimeException(
-                'Fatura için INVOICE.LOGICALREF bulunamadı (ST LOGICALREF=' . $logicalRef . ')'
-            );
-        }
-
-        $invoiceRef = (int) $row['INVOICEREF'];
-        if ($invoiceRef < 1) {
-            throw new \RuntimeException('STFICHE.INVOICEREF boş');
-        }
-
-        return $invoiceRef;
-    }
-
     private function resolveInvoiceFicheNo(
         PDO $pdo,
         int $firmaNo,
         int $donemNo,
         int $logicalRef,
     ): string {
-        $invoiceRef = $this->resolveInvoiceLogicalRef($pdo, $firmaNo, $donemNo, $logicalRef);
         $invoice = $this->schema->quoteIdent(
             $this->schema->invoiceTable($firmaNo, $donemNo)
         );
         $stmt = $pdo->prepare(
             "SELECT TOP 1 FICHENO FROM {$invoice} WHERE LOGICALREF = :lref"
         );
-        $stmt->execute(['lref' => $invoiceRef]);
+        $stmt->execute(['lref' => $logicalRef]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row === false) {
             throw new \RuntimeException(
-                'Fatura için INVOICE.FICHENO bulunamadı (LOGICALREF=' . $invoiceRef . ')'
+                'Fatura için INVOICE.FICHENO bulunamadı (LOGICALREF=' . $logicalRef . ')'
             );
         }
 

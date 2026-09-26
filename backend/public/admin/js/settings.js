@@ -10,7 +10,13 @@
   var firmaVkn = document.getElementById("firma_vkn");
   var firmaEmail = document.getElementById("firma_email");
   var defaultBelgeTipi = document.getElementById("default_belge_tipi");
+  var smsEnabled = document.getElementById("sms_enabled");
+  var netgsmUsername = document.getElementById("netgsm_username");
+  var netgsmPassword = document.getElementById("netgsm_password");
+  var netgsmMsgheader = document.getElementById("netgsm_msgheader");
+  var smsApiUrl = document.getElementById("sms_api_url");
   var firmaLogoInput = document.getElementById("firma_logo");
+  var DEFAULT_SMS_API_URL = "https://btdocs.boluteknoloji.tr/api/sms_gonder.php";
   var logoPreviewWrap = document.getElementById("firma-logo-preview-wrap");
   var logoPreview = document.getElementById("firma-logo-preview");
   var btnUploadLogo = document.getElementById("btn-upload-logo");
@@ -164,6 +170,19 @@
     }
   }
 
+  function applySmsFields(data) {
+    if (smsEnabled) smsEnabled.checked = !!(data && data.sms_enabled);
+    if (netgsmUsername) netgsmUsername.value = (data && data.netgsm_username) || "";
+    if (netgsmPassword) {
+      netgsmPassword.value =
+        data && data.netgsm_password ? data.netgsm_password : "";
+    }
+    if (netgsmMsgheader) netgsmMsgheader.value = (data && data.netgsm_msgheader) || "";
+    if (smsApiUrl) {
+      smsApiUrl.value = (data && data.sms_api_url) || DEFAULT_SMS_API_URL;
+    }
+  }
+
   async function loadSettings() {
     try {
       var data = await Api.get("/api/settings");
@@ -174,6 +193,7 @@
       if (firmaEmail) firmaEmail.value = data.firma_email || "";
       if (defaultBelgeTipi) defaultBelgeTipi.value = data.default_belge_tipi || "tumu";
       applyLogoPreview(data.firma_logo_url || null);
+      applySmsFields(data);
     } catch (err) {
       showFlash((err && err.message) || "Ayarlar yüklenemedi", "error");
     }
@@ -234,13 +254,18 @@
     if (savedEl) savedEl.classList.add("d-none");
     saveBtn.disabled = true;
     try {
-      var res = await Api.put("/api/admin/settings", {
+      var res = await Api.post("/api/admin/settings", {
         firma_unvani: firmaUnvani.value,
         firma_adres: firmaAdres.value,
         firma_telefon: firmaTelefon.value,
         firma_vkn: firmaVkn ? firmaVkn.value : "",
         firma_email: firmaEmail ? firmaEmail.value : "",
         default_belge_tipi: defaultBelgeTipi ? defaultBelgeTipi.value : "tumu",
+        sms_enabled: smsEnabled ? !!smsEnabled.checked : false,
+        netgsm_username: netgsmUsername ? netgsmUsername.value : "",
+        netgsm_password: netgsmPassword ? netgsmPassword.value : "",
+        netgsm_msgheader: netgsmMsgheader ? netgsmMsgheader.value : "",
+        sms_api_url: smsApiUrl ? smsApiUrl.value : "",
       });
       firmaUnvani.value = res.firma_unvani || "";
       firmaAdres.value = res.firma_adres || "";
@@ -249,7 +274,7 @@
       if (firmaEmail) firmaEmail.value = res.firma_email || "";
       if (defaultBelgeTipi) defaultBelgeTipi.value = res.default_belge_tipi || "tumu";
       applyLogoPreview(res.firma_logo_url || null);
-      if (savedEl) {
+      applySmsFields(res);      if (savedEl) {
         savedEl.classList.remove("d-none");
         setTimeout(function () {
           savedEl.classList.add("d-none");
@@ -294,7 +319,7 @@
       }
       btnRemoveLogo.disabled = true;
       try {
-        var res = await Api.del("/api/admin/settings/logo");
+        var res = await Api.post("/api/admin/settings/logo/delete", {});
         applyLogoPreview(res.firma_logo_url || null);
         if (firmaLogoInput) firmaLogoInput.value = "";
         showFlash("Logo kaldırıldı", "ok");
@@ -419,7 +444,7 @@
 
       btnSaveInfra.disabled = true;
       try {
-        var res = await Api.put("/api/admin/settings/infra", infraPayload());
+        var res = await Api.post("/api/admin/settings/infra", infraPayload());
         fillInfra(res || {});
         // Kaydet sonrası her zaman dosyadan yeniden oku (yanıt şekli değişse bile form boşalmasın)
         try {

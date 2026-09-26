@@ -85,15 +85,25 @@ Logo arayüzündeki belge açıklama/not alanı `LDATA` kolonunda tutulur.
 | `DOCNR` | Not sıra no | `1` |
 | `LREF` | PERDOC PK | **IDENTITY** (INSERT’te verilmez) |
 
-Fatura: A3 match key `STFICHE.LOGICALREF` olsa bile PERDOC.INFOREF = `STFICHE.INVOICEREF` (= `INVOICE.LOGICALREF`).
+Fatura match key = `INVOICE.LOGICALREF` (= PERDOC.INFOREF; tablolar arası COALESCE yok).
 
+### TEXTINC (Logo UI’da notun görünmesi)
+
+PERDOC satırı yazılsa bile fiş/fatura başlığında `TEXTINC` `0` ise Logo notu göstermez. Match sonrası ilgili başlıkta `TEXTINC = 1` set edilir:
+
+| Tip | Tablo |
+|-----|--------|
+| fatura | `LG_{FIRMA}_{DONEM}_INVOICE` (`LOGICALREF` = PERDOC.INFOREF) |
+| irsaliye | `LG_{FIRMA}_{DONEM}_STFICHE` |
+| sipariş | `LG_{FIRMA}_{DONEM}_ORFICHE` |
 
 ### FICHENO / uygulama `belge_no` kaynağı
 
 | Tip | Kaynak |
 |-----|--------|
-| fatura | `LG_{FIRMA}_{DONEM}_INVOICE.FICHENO` — önce `INVOICE.LOGICALREF = match key`, yoksa `STFICHE.INVOICEREF → INVOICE` |
-| irsaliye / sipariş | A3 ile aynı: header `FICHENO` (STFICHE / ORFICHE) |
+| fatura | `LG_{FIRMA}_{DONEM}_INVOICE.FICHENO` (`logo_logicalref` = `INVOICE.LOGICALREF`) |
+| irsaliye | `LG_{FIRMA}_{DONEM}_STFICHE.FICHENO` |
+| sipariş | `LG_{FIRMA}_{DONEM}_ORFICHE.FICHENO` |
 
 Uygulama DB (`Documents`): `belge_tipi` string + `logo_logicalref` + `belge_no` (yukarıdaki FICHENO).
 

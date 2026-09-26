@@ -151,11 +151,17 @@ final class EnvFileService
 
         $pdo = null;
         try {
-            $pdo = new PDO($dsn, $user, $pass, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
+            $uid = trim($user);
+            $pdo = new PDO(
+                $dsn,
+                $uid === '' ? null : $uid,
+                $uid === '' ? null : $pass,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]
+            );
             $pdo->query('SELECT 1');
         } catch (PDOException $e) {
             throw new \InvalidArgumentException(
@@ -369,11 +375,17 @@ final class EnvFileService
         );
 
         try {
-            $pdo = new PDO($dsn, $user, $pass, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
+            $uid = trim($user);
+            $pdo = new PDO(
+                $dsn,
+                $uid === '' ? null : $uid,
+                $uid === '' ? null : $pass,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]
+            );
             $pdo->query('SELECT 1');
             $pdo = null;
 

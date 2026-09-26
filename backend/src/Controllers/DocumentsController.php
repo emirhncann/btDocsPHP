@@ -15,6 +15,7 @@ use App\Repositories\LogoDocumentRepository;
 use App\Services\DocumentStorageService;
 use App\Services\FileMimeValidator;
 use App\Services\LogoNoteService;
+use App\Services\SmsService;
 use App\Support\ClientIp;
 use App\Support\SafeError;
 use Psr\Http\Message\ResponseInterface;
@@ -47,6 +48,7 @@ final class DocumentsController
         private readonly FileMimeValidator $mimeValidator,
         private readonly AccessTokenRepository $accessTokens,
         private readonly LogoNoteService $logoNotes,
+        private readonly SmsService $sms,
     ) {
     }
 
@@ -720,7 +722,47 @@ final class DocumentsController
             );
         }
 
-        return JsonResponse::write($response, [
+        $smsResult = null;
+        if ($fileType === 'signed_document') {
+            // Öncelik: upload formundaki teslim alan adı (mobil imza ekranı)
+            $teslimAlanAdi = $this->optionalFormString($body['teslim_alan_adi'] ?? null)
+                ?? $this->optionalFormString($body['imzalayan_adi'] ?? null);
+            $imzalayanAdi = $teslimAlanAdi ?? '';
+            $smsResult = $this->sms->sendAfterSignedDocument($doc, $imzalayanAdi);
+            if (!empty($smsResult['sent'])) {
+                $count = (int) ($smsResult['sent_count'] ?? 1);
+                $this->auditLog->log(
+                    $count > 1 ? ('sms_sent: ' . $count . ' numara') : 'sms_sent',
+                    $uploadedBy,
+                    (int) $doc['id'],
+                    $this->clientIp($request),
+                );
+                if (!empty($smsResult['error'])) {
+                    $this->auditLog->log(
+                        'sms_partial_fail: ' . mb_substr((string) $smsResult['error'], 0, 80),
+                        $uploadedBy,
+                        (int) $doc['id'],
+                        $this->clientIp($request),
+                    );
+                }
+            } elseif (!empty($smsResult['error'])) {
+                $this->auditLog->log(
+                    'sms_failed: ' . mb_substr((string) $smsResult['error'], 0, 85),
+                    $uploadedBy,
+                    (int) $doc['id'],
+                    $this->clientIp($request),
+                );
+            } elseif (!empty($smsResult['skipped'])) {
+                $this->auditLog->log(
+                    'sms_skipped: ' . mb_substr((string) $smsResult['skipped'], 0, 80),
+                    $uploadedBy,
+                    (int) $doc['id'],
+                    $this->clientIp($request),
+                );
+            }
+        }
+
+        $payload = [
             'id' => $record['id'],
             'file_type' => $record['file_type'],
             'version' => $record['version'],
@@ -731,7 +773,19 @@ final class DocumentsController
                 (int) $record['id'],
                 $this->ensureFileAccessToken((int) $doc['id'], (int) $record['id']),
             ),
-        ], 201);
+        ];
+        if ($smsResult !== null) {
+            $payload['sms'] = [
+                'sent' => (bool) ($smsResult['sent'] ?? false),
+                'skipped' => $smsResult['skipped'] ?? null,
+                'error' => $smsResult['error'] ?? null,
+                'sent_count' => (int) ($smsResult['sent_count'] ?? 0),
+                'failed_count' => (int) ($smsResult['failed_count'] ?? 0),
+                'numbers' => $smsResult['numbers'] ?? [],
+            ];
+        }
+
+        return JsonResponse::write($response, $payload, 201);
     }
 
     /**
@@ -864,6 +918,16 @@ final class DocumentsController
     private function clientIp(ServerRequestInterface $request): ?string
     {
         return ClientIp::from($request);
+    }
+
+    private function optionalFormString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $s = trim((string) $value);
+
+        return $s === '' ? null : $s;
     }
 
     /**

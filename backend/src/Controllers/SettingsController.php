@@ -34,8 +34,11 @@ final class SettingsController
     {
         try {
             $row = $this->settings->get();
+            /** @var array<string, mixed> $user */
+            $user = $request->getAttribute('user') ?? [];
+            $includeSms = (($user['role'] ?? '') === 'admin');
 
-            return JsonResponse::write($response, $this->publicPayload($row));
+            return JsonResponse::write($response, $this->publicPayload($row, $includeSms));
         } catch (\Throwable $e) {
             SafeError::log($e, 'settings.show');
 
@@ -89,6 +92,53 @@ final class SettingsController
                 }
             }
 
+            $smsEnabled = $this->parseBool($body['sms_enabled'] ?? false);
+            $netgsmUsername = $this->optionalString($body['netgsm_username'] ?? null);
+            $netgsmMsgheader = $this->optionalString($body['netgsm_msgheader'] ?? null);
+            $smsApiUrl = $this->optionalString($body['sms_api_url'] ?? null);
+            $rawPassword = $body['netgsm_password'] ?? null;
+            $passwordStr = is_string($rawPassword) ? trim($rawPassword) : '';
+            $updatePassword = $passwordStr !== '' && $passwordStr !== AppSettingsRepository::PASSWORD_MASK;
+            $netgsmPassword = $updatePassword ? $passwordStr : null;
+
+            if ($netgsmUsername !== null && mb_strlen($netgsmUsername) > 100) {
+                return JsonResponse::error($response, 'netgsm_username en fazla 100 karakter olabilir', 422);
+            }
+            if ($netgsmPassword !== null && mb_strlen($netgsmPassword) > 100) {
+                return JsonResponse::error($response, 'netgsm_password en fazla 100 karakter olabilir', 422);
+            }
+            if ($netgsmMsgheader !== null && mb_strlen($netgsmMsgheader) > 20) {
+                return JsonResponse::error($response, 'netgsm_msgheader en fazla 20 karakter olabilir', 422);
+            }
+            if ($smsApiUrl !== null) {
+                if (mb_strlen($smsApiUrl) > 500) {
+                    return JsonResponse::error($response, 'sms_api_url en fazla 500 karakter olabilir', 422);
+                }
+                if (!filter_var($smsApiUrl, FILTER_VALIDATE_URL)) {
+                    return JsonResponse::error($response, 'sms_api_url geçerli bir URL olmalı', 422);
+                }
+            }
+
+            if ($smsEnabled) {
+                $existing = $this->settings->get();
+                $effectiveUser = $netgsmUsername ?? $existing['netgsm_username'];
+                $effectiveHeader = $netgsmMsgheader ?? $existing['netgsm_msgheader'];
+                $effectivePass = $updatePassword
+                    ? $netgsmPassword
+                    : ($existing['netgsm_password'] ?? null);
+                if (
+                    $effectiveUser === null || $effectiveUser === ''
+                    || $effectiveHeader === null || $effectiveHeader === ''
+                    || $effectivePass === null || $effectivePass === ''
+                ) {
+                    return JsonResponse::error(
+                        $response,
+                        'SMS aktifken NetGSM kullanıcı adı, şifre ve mesaj başlığı zorunludur',
+                        422
+                    );
+                }
+            }
+
             /** @var array<string, mixed> $user */
             $user = $request->getAttribute('user') ?? [];
             $userId = (int) ($user['id'] ?? 0);
@@ -103,11 +153,17 @@ final class SettingsController
                 $firmaVkn,
                 $firmaEmail,
                 $defaultBelgeTipi,
+                $smsEnabled,
+                $netgsmUsername,
+                $netgsmPassword,
+                $updatePassword,
+                $netgsmMsgheader,
+                $smsApiUrl,
                 $userId,
             );
             $this->auditLog->log('settings_updated', $userId, null, ClientIp::from($request));
 
-            return JsonResponse::write($response, $this->publicPayload($row));
+            return JsonResponse::write($response, $this->publicPayload($row, true));
         } catch (\Throwable $e) {
             SafeError::log($e, 'settings.update');
 
@@ -158,7 +214,7 @@ final class SettingsController
             $row = $this->settings->updateLogoPath($stored['relative_path'], $userId);
             $this->auditLog->log('firma_logo_updated', $userId, null, ClientIp::from($request));
 
-            return JsonResponse::write($response, $this->publicPayload($row));
+            return JsonResponse::write($response, $this->publicPayload($row, true));
         } catch (\Throwable $e) {
             SafeError::log($e, 'settings.uploadLogo');
 
@@ -180,7 +236,7 @@ final class SettingsController
             $row = $this->settings->updateLogoPath(null, $userId);
             $this->auditLog->log('firma_logo_deleted', $userId, null, ClientIp::from($request));
 
-            return JsonResponse::write($response, $this->publicPayload($row));
+            return JsonResponse::write($response, $this->publicPayload($row, true));
         } catch (\Throwable $e) {
             SafeError::log($e, 'settings.deleteLogo');
 
@@ -226,19 +282,11 @@ final class SettingsController
 
     /**
      * @param array<string, mixed> $row
-     * @return array{
-     *   firma_unvani:?string,
-     *   firma_adres:?string,
-     *   firma_telefon:?string,
-     *   firma_vkn:?string,
-     *   firma_email:?string,
-     *   firma_logo_url:?string,
-     *   default_belge_tipi:string
-     * }
+     * @return array<string, mixed>
      */
-    private function publicPayload(array $row): array
+    private function publicPayload(array $row, bool $includeSms): array
     {
-        return [
+        $payload = [
             'firma_unvani' => $row['firma_unvani'],
             'firma_adres' => $row['firma_adres'],
             'firma_telefon' => $row['firma_telefon'],
@@ -246,7 +294,19 @@ final class SettingsController
             'firma_email' => $row['firma_email'],
             'firma_logo_url' => $this->buildLogoUrl($row['firma_logo_path'] ?? null),
             'default_belge_tipi' => AppSettingsRepository::normalizeBelgeTipi($row['default_belge_tipi'] ?? 'tumu'),
+            'sms_enabled' => !empty($row['sms_enabled']),
         ];
+
+        if ($includeSms) {
+            $hasPassword = ($row['netgsm_password'] ?? null) !== null && ($row['netgsm_password'] ?? '') !== '';
+            $payload['netgsm_username'] = $row['netgsm_username'];
+            $payload['netgsm_password'] = $hasPassword ? AppSettingsRepository::PASSWORD_MASK : '';
+            $payload['netgsm_msgheader'] = $row['netgsm_msgheader'];
+            $payload['sms_api_url'] = $row['sms_api_url']
+                ?? AppSettingsRepository::DEFAULT_SMS_API_URL;
+        }
+
+        return $payload;
     }
 
     private function buildLogoUrl(?string $relativePath): ?string
@@ -275,5 +335,18 @@ final class SettingsController
         $s = trim((string) $value);
 
         return $s === '' ? null : $s;
+    }
+
+    private function parseBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (int) $value === 1;
+        }
+        $s = strtolower(trim((string) $value));
+
+        return in_array($s, ['1', 'true', 'yes', 'on', 'aktif'], true);
     }
 }
