@@ -449,7 +449,7 @@
       '<div class="table-responsive">' +
       '<table class="table table-sm table-vcenter">' +
       "<thead><tr>" +
-      "<th>Ürün</th><th class='text-end'>Miktar</th><th class='text-end'>Birim Fiyat</th>" +
+      "<th>Ürün</th><th class='text-end'>Miktar</th><th class='text-end'>Birim Fiyat (KDV Hariç)</th>" +
       "<th class='text-end'>İskonto</th><th class='text-end'>Tutar</th>" +
       "</tr></thead>" +
       '<tbody id="kalemler-body"><tr><td colspan="5" class="text-secondary">Yükleniyor…</td></tr></tbody>' +

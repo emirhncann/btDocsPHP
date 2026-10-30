@@ -339,6 +339,8 @@ final class LogoDocumentRepository
                             COALESCE(i.NAME, l.LINEEXP, '') AS urun_adi,
                             COALESCE(l.AMOUNT, 0) AS miktar,
                             COALESCE(l.PRICE, 0) AS birim_fiyat,
+                            COALESCE(l.VAT, 0) AS kdv_orani,
+                            COALESCE(l.VATINC, 0) AS kdv_dahil,
                             COALESCE(l.TOTAL, 0) AS brut_tutar,
                             COALESCE(l.LINENET, l.TOTAL, 0) AS linenet,
                             COALESCE(l.DISTDISC, 0) AS dist_disc
@@ -355,6 +357,8 @@ final class LogoDocumentRepository
                             COALESCE(i.NAME, l.LINEEXP, '') AS urun_adi,
                             COALESCE(l.AMOUNT, 0) AS miktar,
                             COALESCE(l.PRICE, 0) AS birim_fiyat,
+                            COALESCE(l.VAT, 0) AS kdv_orani,
+                            COALESCE(l.VATINC, 0) AS kdv_dahil,
                             COALESCE(l.TOTAL, 0) AS brut_tutar,
                             COALESCE(l.LINENET, l.TOTAL, 0) AS linenet,
                             COALESCE(l.DISTDISC, 0) AS dist_disc
@@ -466,7 +470,11 @@ final class LogoDocumentRepository
             $kalemler[] = [
                 'urun_adi' => (string) ($row['urun_adi'] ?? ''),
                 'miktar' => (float) ($row['miktar'] ?? 0),
-                'birim_fiyat' => (float) ($row['birim_fiyat'] ?? 0),
+                'birim_fiyat' => $this->birimFiyatKdvHaric(
+                    (float) ($row['birim_fiyat'] ?? 0),
+                    (int) ($row['kdv_dahil'] ?? 0),
+                    (float) ($row['kdv_orani'] ?? 0),
+                ),
                 'iskonto_tutari' => $iskonto,
                 'tutar' => $tutar,
             ];
@@ -474,6 +482,19 @@ final class LogoDocumentRepository
         }
 
         return $kalemler;
+    }
+
+    /**
+     * Logo PRICE, satırda VATINC=1 ise KDV dahil birim fiyattır.
+     * Kalem listesinde birim fiyat her zaman KDV hariç gösterilir.
+     */
+    private function birimFiyatKdvHaric(float $price, int $vatIncluded, float $vatRate): float
+    {
+        if ($vatIncluded === 1 && $vatRate > 0.0 && $price > 0.0) {
+            return $price / (1 + ($vatRate / 100));
+        }
+
+        return $price;
     }
 
     /**

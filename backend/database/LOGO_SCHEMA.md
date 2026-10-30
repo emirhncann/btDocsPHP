@@ -14,7 +14,8 @@ Bu sprint varsayılan olarak şu isimlendirmeyi kullanır:
 ## Önemli kolonlar (varsayılan)
 
 - Başlık: `LOGICALREF`, `FICHENO`, `DATE_`, `CLIENTREF`, `TRCODE`, `CANCELLED`, `GROSSTOTAL`, `TOTALVAT`, `NETTOTAL`, `TOTALDISCOUNTS`
-- Satır: `STOCKREF`, `AMOUNT`, `PRICE`, `TOTAL`, `LINENET`, `DISTDISC`, `DISCPER`, `LINEEXP`, `LINETYPE`, `PARENTLNREF`, FK: `ORDFICHEREF` veya `STFICHEREF`
+- Satır: `STOCKREF`, `AMOUNT`, `PRICE`, `VAT`, `VATINC`, `TOTAL`, `LINENET`, `DISTDISC`, `DISCPER`, `LINEEXP`, `LINETYPE`, `PARENTLNREF`, FK: `ORDFICHEREF` veya `STFICHEREF`
+- `VATINC = 1` ise `PRICE` KDV dahil birim fiyattır. API `birim_fiyat` bu durumda `PRICE / (1 + VAT/100)` olarak KDV hariç döner. `VATINC = 0` ise `PRICE` olduğu gibi (zaten KDV hariç) kalır.
 - Cari: `CODE`, `DEFINITION_`, `ADDR1`, `ADDR2`, `CITY`, `ACTIVE` (0=aktif)
 - Cari vergi / kimlik: `TAXNR` (kurumsal VKN — bu kurulumda `VERGINO` kolonu yok), `TCKNO` (şahıs TC). API `vkn` alanı olarak `COALESCE(TAXNR, TCKNO)` döner.
 - GO3DEMO örnek veride birçok carinin `TAXNR` alanı boş; dolu kimlik çoğu zaman `TCKNO` üzerindedir. VKN araması her iki kolonda da `LIKE` yapar.
