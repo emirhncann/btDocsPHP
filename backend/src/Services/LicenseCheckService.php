@@ -31,7 +31,8 @@ final class LicenseCheckService
      *     is_valid:bool,
      *     last_checked_at:?string,
      *     last_successful_check_at:?string,
-     *     bitis_tarihi:?string
+     *     bitis_tarihi:?string,
+     *     max_users:?int
      *   }
      * }
      */
@@ -100,7 +101,11 @@ final class LicenseCheckService
             ];
         }
 
-        $this->status->markSuccessfulCheck($parsed['is_valid'], $parsed['bitis_tarihi']);
+        $this->status->markSuccessfulCheck(
+            $parsed['is_valid'],
+            $parsed['bitis_tarihi'],
+            $parsed['max_users'],
+        );
 
         return [
             'ok' => true,
@@ -159,7 +164,7 @@ final class LicenseCheckService
     }
 
     /**
-     * @return array{is_valid:?bool, bitis_tarihi:?string}
+     * @return array{is_valid:?bool, bitis_tarihi:?string, max_users:?int}
      * @param array<string, mixed> $payload
      */
     private function parseVerifyPayload(array $payload): array
@@ -200,7 +205,44 @@ final class LicenseCheckService
         return [
             'is_valid' => $isValid,
             'bitis_tarihi' => $bitisTarihi,
+            'max_users' => $this->parseMaxUsers($data, $payload),
         ];
+    }
+
+    /**
+     * NULL = sınırsız. Anahtar yoksa veya sayı değilse de NULL (kota yok).
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $payload
+     */
+    private function parseMaxUsers(array $data, array $payload): ?int
+    {
+        if (array_key_exists('max_users', $data)) {
+            $raw = $data['max_users'];
+        } elseif (array_key_exists('max_users', $payload)) {
+            $raw = $payload['max_users'];
+        } else {
+            return null;
+        }
+
+        if ($raw === null) {
+            return null;
+        }
+
+        if (is_string($raw)) {
+            $raw = trim($raw);
+            if ($raw === '' || strtolower($raw) === 'null') {
+                return null;
+            }
+        }
+
+        if (is_bool($raw) || !is_numeric($raw)) {
+            return null;
+        }
+
+        $maxUsers = (int) $raw;
+
+        return $maxUsers >= 0 ? $maxUsers : null;
     }
 
     /**

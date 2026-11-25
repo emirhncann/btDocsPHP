@@ -51,7 +51,13 @@
     if (loading) loading.classList.add("d-none");
   }
 
-  function renderActiveUsers(activeUsers) {
+  function formatActiveUsers(activeUsers, maxUsers) {
+    var label = fmtInt(activeUsers);
+    if (maxUsers == null || maxUsers === "") return label;
+    return label + " / " + fmtInt(maxUsers);
+  }
+
+  function renderActiveUsers(activeUsers, maxUsers) {
     var wrap = document.getElementById("active-users-wrap");
     if (!wrap) return;
 
@@ -61,7 +67,8 @@
     }
 
     wrap.classList.remove("d-none");
-    setText("stat-active-users", fmtInt(activeUsers));
+    setText("stat-active-users", formatActiveUsers(activeUsers, maxUsers));
+    setText("stat-active-users-label", "Aktif Kullanıcı: " + formatActiveUsers(activeUsers, maxUsers));
   }
 
   function renderRecent(items) {
@@ -128,7 +135,7 @@
       AdminUtils.formatFileSize(totals.total_size_bytes || 0)
     );
 
-    renderActiveUsers(data.active_users);
+    renderActiveUsers(data.active_users, null);
     renderRecent(data.recent_uploads || []);
   }
 
@@ -136,7 +143,16 @@
     setLoading(true);
     try {
       var data = await Api.get("/api/admin/stats");
+      var license = null;
+      try {
+        license = await Api.get("/api/admin/license-status");
+      } catch (licenseErr) {
+        license = null;
+      }
       renderStats(data || {});
+      if (license && license.active_users != null) {
+        renderActiveUsers(license.active_users, license.max_users);
+      }
       setLoading(false);
     } catch (err) {
       showError((err && err.message) || "İstatistikler yüklenemedi.");

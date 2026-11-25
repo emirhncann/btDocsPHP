@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Http\JsonResponse;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UserRepository;
+use App\Services\UserLimitService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -15,6 +16,7 @@ final class AdminUsersController
     public function __construct(
         private readonly UserRepository $users,
         private readonly AuditLogRepository $auditLog,
+        private readonly UserLimitService $userLimit,
     ) {
     }
 
@@ -72,6 +74,11 @@ final class AdminUsersController
 
         if ($this->users->usernameExists($username)) {
             return JsonResponse::error($response, 'Bu kullanıcı adı zaten kullanılıyor', 409);
+        }
+
+        $limitResponse = $this->rejectIfUserLimitReached($response);
+        if ($limitResponse !== null) {
+            return $limitResponse;
         }
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
@@ -158,6 +165,14 @@ final class AdminUsersController
             return JsonResponse::error($response, 'role sadece admin, user veya readonly olabilir', 422);
         }
 
+        $wasActive = UserRepository::isTruthy($existing['is_active'] ?? false);
+        if (!$wasActive && $isActive) {
+            $limitResponse = $this->rejectIfUserLimitReached($response);
+            if ($limitResponse !== null) {
+                return $limitResponse;
+            }
+        }
+
         $this->users->update($id, $fullName, $role, $isActive, $defaultFirmaNo, $defaultDonemNo);
         $updated = $this->users->findPublicById($id);
 
@@ -228,6 +243,16 @@ final class AdminUsersController
         );
 
         return JsonResponse::write($response, $deactivated ?? []);
+    }
+
+    private function rejectIfUserLimitReached(ResponseInterface $response): ?ResponseInterface
+    {
+        $payload = $this->userLimit->limitReachedPayload();
+        if ($payload === null) {
+            return null;
+        }
+
+        return JsonResponse::write($response, $payload, 403);
     }
 
     private function validateCreate(string $username, string $password, string $fullName, string $role): ?string

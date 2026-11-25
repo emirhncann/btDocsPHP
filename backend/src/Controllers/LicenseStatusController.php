@@ -8,6 +8,7 @@ use App\Http\JsonResponse;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\LicenseStatusRepository;
 use App\Services\LicenseCheckService;
+use App\Services\UserLimitService;
 use App\Support\ClientIp;
 use App\Support\SafeError;
 use Psr\Http\Message\ResponseInterface;
@@ -18,6 +19,7 @@ final class LicenseStatusController
     public function __construct(
         private readonly LicenseStatusRepository $licenseStatus,
         private readonly LicenseCheckService $licenseCheck,
+        private readonly UserLimitService $userLimit,
         private readonly AuditLogRepository $auditLog,
     ) {
     }
@@ -75,7 +77,9 @@ final class LicenseStatusController
      *   kalan_gun:?int,
      *   last_checked_at:?string,
      *   last_successful_check_at:?string,
-     *   writes_allowed:bool
+     *   writes_allowed:bool,
+     *   max_users:?int,
+     *   active_users:int
      * }
      */
     private function statusPayload(): array
@@ -89,6 +93,8 @@ final class LicenseStatusController
             'last_checked_at' => $row['last_checked_at'],
             'last_successful_check_at' => $row['last_successful_check_at'],
             'writes_allowed' => $this->licenseStatus->allowsWrites(),
+            'max_users' => $row['max_users'],
+            'active_users' => $this->userLimit->getActiveUserCount(),
         ];
     }
 

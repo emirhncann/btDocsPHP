@@ -19,7 +19,8 @@ final class LicenseStatusRepository
      *   is_valid:bool,
      *   last_checked_at:?string,
      *   last_successful_check_at:?string,
-     *   bitis_tarihi:?string
+     *   bitis_tarihi:?string,
+     *   max_users:?int
      * }
      */
     public function get(): array
@@ -27,7 +28,7 @@ final class LicenseStatusRepository
         $this->ensureRow();
 
         $stmt = $this->db->getConnection()->query(
-            'SELECT TOP 1 is_valid, last_checked_at, last_successful_check_at, bitis_tarihi
+            'SELECT TOP 1 is_valid, last_checked_at, last_successful_check_at, bitis_tarihi, max_users
              FROM dbo.LicenseStatus
              WHERE id = 1'
         );
@@ -50,22 +51,28 @@ final class LicenseStatusRepository
         );
     }
 
-    public function markSuccessfulCheck(bool $isValid, ?string $bitisTarihi): void
+    public function markSuccessfulCheck(bool $isValid, ?string $bitisTarihi, ?int $maxUsers): void
     {
         $this->ensureRow();
 
+        $maxSql = $maxUsers === null ? 'NULL' : ':max_users';
         $stmt = $this->db->getConnection()->prepare(
-            'UPDATE dbo.LicenseStatus
+            "UPDATE dbo.LicenseStatus
              SET is_valid = :is_valid,
                  bitis_tarihi = :bitis_tarihi,
+                 max_users = {$maxSql},
                  last_checked_at = GETDATE(),
                  last_successful_check_at = GETDATE()
-             WHERE id = 1'
+             WHERE id = 1"
         );
-        $stmt->execute([
+        $params = [
             'is_valid' => $isValid ? 1 : 0,
             'bitis_tarihi' => $bitisTarihi,
-        ]);
+        ];
+        if ($maxUsers !== null) {
+            $params['max_users'] = $maxUsers;
+        }
+        $stmt->execute($params);
     }
 
     /**
@@ -118,7 +125,8 @@ final class LicenseStatusRepository
      *   is_valid:bool,
      *   last_checked_at:?string,
      *   last_successful_check_at:?string,
-     *   bitis_tarihi:?string
+     *   bitis_tarihi:?string,
+     *   max_users:?int
      * }
      */
     private function normalize(array $row): array
@@ -128,6 +136,7 @@ final class LicenseStatusRepository
             'last_checked_at' => $this->formatDateTime($row['last_checked_at'] ?? null),
             'last_successful_check_at' => $this->formatDateTime($row['last_successful_check_at'] ?? null),
             'bitis_tarihi' => $this->formatDate($row['bitis_tarihi'] ?? null),
+            'max_users' => $this->formatIntOrNull($row['max_users'] ?? null),
         ];
     }
 
@@ -136,7 +145,8 @@ final class LicenseStatusRepository
      *   is_valid:bool,
      *   last_checked_at:?string,
      *   last_successful_check_at:?string,
-     *   bitis_tarihi:?string
+     *   bitis_tarihi:?string,
+     *   max_users:?int
      * }
      */
     private function defaultRow(): array
@@ -146,6 +156,7 @@ final class LicenseStatusRepository
             'last_checked_at' => null,
             'last_successful_check_at' => null,
             'bitis_tarihi' => null,
+            'max_users' => null,
         ];
     }
 
@@ -173,6 +184,21 @@ final class LicenseStatusRepository
         }
 
         return (string) $value;
+    }
+
+    private function formatIntOrNull(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_float($value) || (is_string($value) && is_numeric(trim($value)))) {
+            return (int) $value;
+        }
+
+        return null;
     }
 
     private function formatDate(mixed $value): ?string

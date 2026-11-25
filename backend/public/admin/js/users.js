@@ -8,6 +8,7 @@
   var filterRole = document.getElementById("filter-role");
   var filterActive = document.getElementById("filter-active");
   var usersCache = [];
+  var userLimit = { active_users: null, max_users: null };
 
   function showFlash(msg, type) {
     flash.textContent = msg;
@@ -33,9 +34,59 @@
     });
   }
 
+  function isLimitFull() {
+    if (userLimit.max_users == null) return false;
+    return Number(userLimit.active_users) >= Number(userLimit.max_users);
+  }
+
+  function formatLimitLine() {
+    if (userLimit.active_users == null) return "Aktif Kullanıcı: —";
+    if (userLimit.max_users == null) {
+      return "Aktif Kullanıcı: " + userLimit.active_users;
+    }
+    return (
+      "Aktif Kullanıcı: " + userLimit.active_users + " / " + userLimit.max_users
+    );
+  }
+
+  function applyUserLimitUi() {
+    var line = document.getElementById("user-limit-line");
+    if (line) line.textContent = formatLimitLine();
+
+    var full = isLimitFull();
+    var btn = document.getElementById("btn-new-user");
+    var hint = document.getElementById("user-limit-hint");
+    if (btn) {
+      btn.disabled = full;
+      btn.title = full ? "Kullanıcı limitine ulaşıldı" : "";
+    }
+    if (hint) {
+      hint.textContent = full
+        ? "Kullanıcı limitine ulaşıldı. Lisansınızı yükseltin."
+        : "";
+      hint.classList.toggle("d-none", !full);
+    }
+  }
+
+  async function loadUserLimit() {
+    try {
+      var data = await Api.get("/api/admin/license-status");
+      userLimit.active_users =
+        data && data.active_users != null ? Number(data.active_users) : null;
+      userLimit.max_users =
+        data && data.max_users != null && data.max_users !== ""
+          ? Number(data.max_users)
+          : null;
+    } catch (err) {
+      userLimit = { active_users: null, max_users: null };
+    }
+    applyUserLimitUi();
+  }
+
   async function loadUsers() {
     hideFlash();
     tbody.innerHTML = '<tr><td colspan="6" class="text-secondary">Yükleniyor…</td></tr>';
+    await loadUserLimit();
     try {
       usersCache = await Api.get("/api/admin/users", {
         role: filterRole.value,
@@ -95,7 +146,13 @@
             ? "<button type='button' class='btn btn-sm btn-outline-danger btn-deactivate' data-id='" +
               u.id +
               "'>Pasifleştir</button>"
-            : "") +
+            : "<button type='button' class='btn btn-sm btn-outline-success btn-activate' data-id='" +
+              u.id +
+              "'" +
+              (isLimitFull()
+                ? " disabled title='Kullanıcı limitine ulaşıldı'"
+                : "") +
+              ">Aktifleştir</button>") +
           "</div></td>" +
           "</tr>"
         );
@@ -106,6 +163,7 @@
   function userFormHtml(mode, user) {
     user = user || {};
     var isEdit = mode === "edit";
+    var blockActivate = isEdit && !user.is_active && isLimitFull();
     return (
       '<form id="user-form" novalidate>' +
       '<input type="hidden" id="user-id" value="' +
@@ -167,8 +225,12 @@
         ? '<div class="mb-0 form-check">' +
           '<input class="form-check-input" type="checkbox" id="user-is-active"' +
           (user.is_active ? " checked" : "") +
+          (blockActivate ? " disabled" : "") +
           " />" +
           '<label class="form-check-label" for="user-is-active">Aktif</label>' +
+          (blockActivate
+            ? '<div class="text-secondary small mt-1">Kullanıcı limitine ulaşıldı. Lisansınızı yükseltin.</div>'
+            : "") +
           "</div>"
         : "") +
       '<div id="user-form-error" class="alert alert-danger mt-3 d-none"></div>' +
@@ -325,6 +387,17 @@
     }
     if (btn.classList.contains("btn-reset")) {
       openResetModal(user);
+      return;
+    }
+    if (btn.classList.contains("btn-activate")) {
+      if (btn.disabled) return;
+      try {
+        await Api.post("/api/admin/users/" + id, { is_active: 1 });
+        showFlash("Kullanıcı aktifleştirildi", "ok");
+        await loadUsers();
+      } catch (err) {
+        showFlash(err.message || "İşlem başarısız", "error");
+      }
       return;
     }
     if (btn.classList.contains("btn-deactivate")) {

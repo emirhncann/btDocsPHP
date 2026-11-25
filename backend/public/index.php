@@ -35,6 +35,7 @@ use App\Services\EnvFileService;
 use App\Services\FileMimeValidator;
 use App\Services\JwtService;
 use App\Services\LicenseCheckService;
+use App\Services\UserLimitService;
 use App\Services\LogoDbConnection;
 use App\Services\PublicAccessGuard;
 use App\Services\RateLimiter;
@@ -71,6 +72,7 @@ $containerBuilder->addDefinitions([
     LogoDocumentRepository::class => \DI\autowire(),
     \App\Services\LogoNoteService::class => \DI\autowire(),
     LicenseCheckService::class => \DI\autowire(),
+    UserLimitService::class => \DI\autowire(),
     \App\Services\SmsService::class => \DI\autowire(),
     AccessTokenRepository::class => \DI\autowire(),
     PublicAccessGuard::class => \DI\autowire(),

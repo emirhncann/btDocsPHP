@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 /**
  * İlk admin kullanıcısını oluşturur.
+ * Kullanıcı kotası (UserLimitService) uygulanmaz; kurulumda limit dolu olsa da oluşturulabilir.
  *
  * Kullanım:
  *   php seed_admin.php --username=admin --password=GucluSifre123 --full-name="Sistem Admin"
