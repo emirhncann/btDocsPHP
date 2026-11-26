@@ -449,7 +449,7 @@
       '<div class="table-responsive">' +
       '<table class="table table-sm table-vcenter">' +
       "<thead><tr>" +
-      "<th>Ürün</th><th class='text-end'>Miktar</th><th class='text-end'>Birim Fiyat (KDV Hariç)</th>" +
+      "<th>Ürün</th><th class='text-end'>Miktar</th><th class='text-end'>Birim Fiyat</th>" +
       "<th class='text-end'>İskonto</th><th class='text-end'>Tutar</th>" +
       "</tr></thead>" +
       '<tbody id="kalemler-body"><tr><td colspan="5" class="text-secondary">Yükleniyor…</td></tr></tbody>' +
@@ -684,7 +684,7 @@
               escapeHtml(formatMoney(k.birim_fiyat)) +
               "</td>" +
               '<td class="text-end">' +
-              escapeHtml(formatMoney(k.iskonto_tutari || 0)) +
+              formatIskontoCell(k) +
               "</td>" +
               '<td class="text-end">' +
               escapeHtml(formatMoney(k.tutar)) +
@@ -699,19 +699,112 @@
         tutarEl.textContent = formatMoney(detail.toplam_tutar);
       }
       if (totalsEl) {
-        var parts = ["Ara toplam: " + formatMoney(detail.toplam_tutar || 0)];
-        if (detail.kdv_tutari != null) {
-          parts.push("KDV: " + formatMoney(detail.kdv_tutari));
+        if (detail.toplamlar && typeof detail.toplamlar === "object") {
+          totalsEl.className = "mt-2";
+          totalsEl.innerHTML = renderFaturaToplamlar(
+            detail.toplamlar,
+            detail.genel_iskontolar || []
+          );
+        } else {
+          totalsEl.className = "text-secondary small mt-1";
+          var parts = ["Ara toplam: " + formatMoney(detail.toplam_tutar || 0)];
+          if (detail.kdv_tutari != null) {
+            parts.push("KDV: " + formatMoney(detail.kdv_tutari));
+          }
+          if (detail.genel_toplam != null) {
+            parts.push("Genel: " + formatMoney(detail.genel_toplam));
+          }
+          totalsEl.textContent = parts.join(" · ");
         }
-        if (detail.genel_toplam != null) {
-          parts.push("Genel: " + formatMoney(detail.genel_toplam));
-        }
-        totalsEl.textContent = parts.join(" · ");
       }
     } catch (err) {
       body.innerHTML =
         '<tr><td colspan="5" class="text-secondary">Kalemler yüklenemedi</td></tr>';
     }
+  }
+
+  function isZeroMoney(n) {
+    var x = Number(n);
+    return !isFinite(x) || Math.abs(x) < 0.005;
+  }
+
+  function formatOran(n) {
+    var x = Number(n);
+    if (!isFinite(x)) return "";
+    return x.toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+  }
+
+  function formatIskontoCell(k) {
+    var tutar = Number(k && k.iskonto_tutari);
+    var oranlar = Array.isArray(k && k.iskonto_oranlari)
+      ? k.iskonto_oranlari.filter(function (o) {
+          return Number(o) > 0;
+        })
+      : [];
+    if (isZeroMoney(tutar) && !oranlar.length) {
+      return "—";
+    }
+    var html = escapeHtml(formatMoney(isFinite(tutar) ? tutar : 0));
+    if (oranlar.length) {
+      html +=
+        '<div class="text-secondary small">' +
+        oranlar
+          .map(function (o) {
+            return "%" + formatOran(o);
+          })
+          .join(" + ") +
+        "</div>";
+    }
+    return html;
+  }
+
+  function toplamSatiri(label, value, emphasize) {
+    return (
+      "<tr" +
+      (emphasize ? ' class="fw-bold"' : "") +
+      ">" +
+      '<td class="text-secondary border-0 py-1">' +
+      escapeHtml(label) +
+      "</td>" +
+      '<td class="text-end border-0 py-1">' +
+      escapeHtml(formatMoney(value)) +
+      "</td></tr>"
+    );
+  }
+
+  function renderFaturaToplamlar(toplamlar, genelIskontolar) {
+    var rows = [];
+    if (!isZeroMoney(toplamlar.indirimsiz_toplam)) {
+      rows.push(toplamSatiri("İndirimsiz Toplam", toplamlar.indirimsiz_toplam));
+    }
+    (genelIskontolar || []).forEach(function (g) {
+      if (isZeroMoney(g && g.tutar)) return;
+      var oran = Number(g.oran);
+      var label =
+        isFinite(oran) && oran > 0
+          ? "Genel İskonto %" + formatOran(oran)
+          : "Genel İskonto";
+      rows.push(toplamSatiri(label, g.tutar));
+    });
+    if (!isZeroMoney(toplamlar.toplam_indirim)) {
+      rows.push(toplamSatiri("Toplam İndirim", toplamlar.toplam_indirim));
+    }
+    if (!isZeroMoney(toplamlar.matrah)) {
+      rows.push(toplamSatiri("Matrah", toplamlar.matrah));
+    }
+    if (!isZeroMoney(toplamlar.toplam_kdv)) {
+      rows.push(toplamSatiri("KDV", toplamlar.toplam_kdv));
+    }
+    if (!isZeroMoney(toplamlar.genel_toplam)) {
+      rows.push(toplamSatiri("Genel Toplam", toplamlar.genel_toplam, true));
+    }
+    if (!rows.length) return "";
+    return (
+      '<table class="table table-sm table-borderless w-auto ms-auto mb-0">' +
+      "<tbody>" +
+      rows.join("") +
+      "</tbody></table>"
+    );
   }
 
   function formatQty(n) {

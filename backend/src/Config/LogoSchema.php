@@ -13,6 +13,7 @@ namespace App\Config;
  * Varsayılan desenler:
  *   Cari   : LG_{FIRMA}_CLCARD
  *   Stok   : LG_{FIRMA}_ITEMS
+ *   Hizmet : LG_{FIRMA}_SRVCARD
  *   Sipariş: LG_{FIRMA}_{DONEM}_ORFICHE / ORFLINE
  *   İrsaliye/Fatura: LG_{FIRMA}_{DONEM}_STFICHE / STLINE
  */
@@ -50,6 +51,14 @@ final class LogoSchema
     {
         return $this->resolve(
             Settings::get('LOGO_TABLE_ITEMS', 'LG_{FIRMA}_ITEMS'),
+            $firmaNo
+        );
+    }
+
+    public function srvcardTable(int $firmaNo): string
+    {
+        return $this->resolve(
+            Settings::get('LOGO_TABLE_SRVCARD', 'LG_{FIRMA}_SRVCARD'),
             $firmaNo
         );
     }

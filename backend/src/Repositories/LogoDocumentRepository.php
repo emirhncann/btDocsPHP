@@ -289,7 +289,11 @@ final class LogoDocumentRepository
                             inv.DOCODE AS doc_no,
                             inv.DATE_ AS tarih,
                             inv.CAPIBLOCK_CREADEDDATE AS logo_created_at,
+                            COALESCE(inv.GROSSTOTAL, 0) AS indirimsiz_toplam,
+                            COALESCE(inv.TOTALDISCOUNTS, 0) AS toplam_indirim,
+                            COALESCE(inv.TOTALDISCOUNTED, 0) AS matrah,
                             COALESCE(inv.TOTALVAT, 0) AS kdv_tutari,
+                            COALESCE(inv.NETTOTAL, 0) AS net_total,
                             COALESCE(inv.NETTOTAL, inv.GROSSTOTAL, 0) AS genel_toplam,
                             c.CODE AS cari_kod,
                             c.DEFINITION_ AS cari_unvan,
@@ -330,25 +334,22 @@ final class LogoDocumentRepository
             return null;
         }
 
-        // LINETYPE: 0 malzeme, 2 indirim, 4 hizmet, 6 set, 7 set detayı (bkz. LOGO_SCHEMA.md)
+        $genelIskontolar = null;
+        $toplamlar = null;
+
+        // Fatura: malzeme (0) + hizmet (4). İskonto (2) ayrı sorgularla bağlanır.
+        // İrsaliye/sipariş mevcut satır mantığını kullanır.
         if ($belgeTipi === 'fatura') {
-            $lineSql = "SELECT
-                            l.LOGICALREF AS line_ref,
-                            COALESCE(l.LINETYPE, 0) AS linetype,
-                            COALESCE(l.PARENTLNREF, 0) AS parent_ln_ref,
-                            COALESCE(i.NAME, l.LINEEXP, '') AS urun_adi,
-                            COALESCE(l.AMOUNT, 0) AS miktar,
-                            COALESCE(l.PRICE, 0) AS birim_fiyat,
-                            COALESCE(l.VAT, 0) AS kdv_orani,
-                            COALESCE(l.VATINC, 0) AS kdv_dahil,
-                            COALESCE(l.TOTAL, 0) AS brut_tutar,
-                            COALESCE(l.LINENET, l.TOTAL, 0) AS linenet,
-                            COALESCE(l.DISTDISC, 0) AS dist_disc
-                        FROM {$line} l
-                        LEFT JOIN {$items} i ON i.LOGICALREF = l.STOCKREF
-                        WHERE l.INVOICEREF = :logicalref
-                        ORDER BY l.LOGICALREF";
-            $lineParams = ['logicalref' => $logicalRef];
+            $srvcard = $this->schema->quoteIdent($this->schema->srvcardTable($firmaNo));
+            $kalemler = $this->fetchFaturaKalemler($line, $items, $srvcard, $logicalRef);
+            $genelIskontolar = $this->fetchFaturaGenelIskontolar($line, $logicalRef);
+            $toplamlar = [
+                'indirimsiz_toplam' => round((float) ($head['indirimsiz_toplam'] ?? 0), 2),
+                'toplam_indirim' => round((float) ($head['toplam_indirim'] ?? 0), 2),
+                'matrah' => round((float) ($head['matrah'] ?? 0), 2),
+                'toplam_kdv' => round((float) ($head['kdv_tutari'] ?? 0), 2),
+                'genel_toplam' => round((float) ($head['net_total'] ?? 0), 2),
+            ];
         } else {
             $lineSql = "SELECT
                             l.LOGICALREF AS line_ref,
@@ -366,14 +367,11 @@ final class LogoDocumentRepository
                         LEFT JOIN {$items} i ON i.LOGICALREF = l.STOCKREF
                         WHERE l.[{$fkCol}] = :logicalref
                         ORDER BY l.LOGICALREF";
-            $lineParams = ['logicalref' => $logicalRef];
+            $lineStmt = $this->logoDb->getConnection()->prepare($lineSql);
+            $lineStmt->execute($lineParams);
+            $lines = $lineStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $kalemler = $this->buildKalemlerFromLines($lines);
         }
-
-        $lineStmt = $this->logoDb->getConnection()->prepare($lineSql);
-        $lineStmt->execute($lineParams);
-        $lines = $lineStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        $kalemler = $this->buildKalemlerFromLines($lines);
 
         $toplamTutar = 0.0;
         foreach ($kalemler as $kalem) {
@@ -386,7 +384,7 @@ final class LogoDocumentRepository
             ((string) ($head['sehir'] ?? ''))
         );
 
-        return [
+        $result = [
             'logo_logicalref' => (int) $head['logo_logicalref'],
             'belge_tipi' => $belgeTipi,
             'belge_no' => self::trimNo($head['belge_no'] ?? ''),
@@ -407,6 +405,128 @@ final class LogoDocumentRepository
             'kdv_tutari' => (float) ($head['kdv_tutari'] ?? 0),
             'genel_toplam' => (float) ($head['genel_toplam'] ?? 0),
         ];
+
+        if ($genelIskontolar !== null && $toplamlar !== null) {
+            $result['genel_iskontolar'] = $genelIskontolar;
+            $result['toplamlar'] = $toplamlar;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fatura kalemleri (LINETYPE 0 ve 4) ve onlara bağlı satır iskontoları.
+     * İskonto satırı INVOICEREF ile değil, parent satırın faturası üzerinden bağlanır.
+     * Her sorguda :logicalref bir kez kullanılır (pdo_sqlsrv).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchFaturaKalemler(string $line, string $items, string $srvcard, int $logicalRef): array
+    {
+        $lineSql = "SELECT
+                s.LOGICALREF AS line_ref,
+                s.LINETYPE   AS linetype,
+                CASE WHEN s.LINETYPE = 4 THEN sc.CODE ELSE i.CODE END AS urun_kodu,
+                COALESCE(CASE WHEN s.LINETYPE = 4 THEN sc.DEFINITION_ ELSE i.NAME END,
+                         s.LINEEXP, '') AS urun_adi,
+                COALESCE(s.AMOUNT, 0) AS miktar,
+                COALESCE(s.PRICE, 0)  AS birim_fiyat,
+                COALESCE(s.VAT, 0)    AS kdv_orani,
+                COALESCE(s.TOTAL, 0)  AS brut_tutar
+            FROM {$line} s
+            LEFT JOIN {$items}   i  ON s.LINETYPE = 0 AND i.LOGICALREF  = s.STOCKREF
+            LEFT JOIN {$srvcard} sc ON s.LINETYPE = 4 AND sc.LOGICALREF = s.STOCKREF
+            WHERE s.INVOICEREF = :logicalref
+              AND s.LINETYPE IN (0, 4)
+            ORDER BY s.LOGICALREF";
+
+        $discSql = "SELECT d.PARENTLNREF AS parent_ref,
+                           COALESCE(d.DISCPER, 0) AS oran,
+                           COALESCE(d.TOTAL, 0)   AS tutar
+                    FROM {$line} d
+                    JOIN {$line} p ON p.LOGICALREF = d.PARENTLNREF
+                    WHERE p.INVOICEREF = :logicalref
+                      AND d.LINETYPE = 2
+                      AND d.PARENTLNREF <> 0
+                    ORDER BY d.PARENTLNREF, d.LOGICALREF";
+
+        $lineRows = $this->fetchLogoRows($lineSql, $logicalRef);
+        $discRows = $this->fetchLogoRows($discSql, $logicalRef);
+
+        /** @var array<int, array{oranlar: list<float>, tutar: float}> $iskonto */
+        $iskonto = [];
+        foreach ($discRows as $row) {
+            $parentRef = (int) ($row['parent_ref'] ?? 0);
+            if (!isset($iskonto[$parentRef])) {
+                $iskonto[$parentRef] = ['oranlar' => [], 'tutar' => 0.0];
+            }
+            $oran = (float) ($row['oran'] ?? 0);
+            if ($oran > 0) {
+                $iskonto[$parentRef]['oranlar'][] = $oran;
+            }
+            $iskonto[$parentRef]['tutar'] += (float) ($row['tutar'] ?? 0);
+        }
+
+        $kalemler = [];
+        foreach ($lineRows as $row) {
+            $lineRef = (int) ($row['line_ref'] ?? 0);
+            $isk = $iskonto[$lineRef] ?? ['oranlar' => [], 'tutar' => 0.0];
+            $iskTutar = round((float) ($isk['tutar'] ?? 0), 2);
+            $brut = (float) ($row['brut_tutar'] ?? 0);
+            $kod = $row['urun_kodu'] ?? null;
+
+            $kalemler[] = [
+                'urun_kodu' => $kod !== null ? trim((string) $kod) : '',
+                'urun_adi' => trim((string) ($row['urun_adi'] ?? '')),
+                'tip' => ((int) ($row['linetype'] ?? 0) === 4) ? 'Hizmet' : 'Malzeme',
+                'miktar' => (float) ($row['miktar'] ?? 0),
+                'birim_fiyat' => (float) ($row['birim_fiyat'] ?? 0),
+                'brut_tutar' => $brut,
+                'iskonto_oranlari' => $isk['oranlar'],
+                'iskonto_tutari' => $iskTutar,
+                'tutar' => round($brut - $iskTutar, 2),
+            ];
+        }
+
+        return $kalemler;
+    }
+
+    /**
+     * Fatura altı iskonto: LINETYPE=2 ve PARENTLNREF=0.
+     *
+     * @return list<array{oran: float, tutar: float}>
+     */
+    private function fetchFaturaGenelIskontolar(string $line, int $logicalRef): array
+    {
+        $sql = "SELECT COALESCE(DISCPER, 0) AS oran, COALESCE(TOTAL, 0) AS tutar
+                FROM {$line}
+                WHERE INVOICEREF = :logicalref
+                  AND LINETYPE = 2
+                  AND PARENTLNREF = 0
+                ORDER BY LOGICALREF";
+
+        $rows = $this->fetchLogoRows($sql, $logicalRef);
+        $genel = [];
+        foreach ($rows as $row) {
+            $genel[] = [
+                'oran' => (float) ($row['oran'] ?? 0),
+                'tutar' => round((float) ($row['tutar'] ?? 0), 2),
+            ];
+        }
+
+        return $genel;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function fetchLogoRows(string $sql, int $logicalRef): array
+    {
+        $stmt = $this->logoDb->getConnection()->prepare($sql);
+        $stmt->execute(['logicalref' => $logicalRef]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows ?: [];
     }
 
     /**
